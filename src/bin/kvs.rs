@@ -1,5 +1,5 @@
 extern crate clap;
-use clap::{App, Arg, crate_name, crate_version, crate_authors}; 
+use clap::{crate_authors, crate_name, crate_version, App, Arg};
 use std::process;
 
 fn main() {
@@ -10,34 +10,18 @@ fn main() {
         .subcommand(
             App::new("get")
                 .about("Gets value according to the key")
-                .arg(
-                    Arg::new("KEY")
-                        .required(true)
-                        .index(1)
-                )
-            )
+                .arg(Arg::new("KEY").required(true).index(1)),
+        )
         .subcommand(
             App::new("set")
                 .about("Sets key-value pair")
-                .arg(
-                    Arg::new("KEY")
-                        .required(true)
-                        .index(1)
-                )
-                .arg(
-                    Arg::new("VALUE")
-                        .required(true)
-                        .index(2)
-                ),
+                .arg(Arg::new("KEY").required(true).index(1))
+                .arg(Arg::new("VALUE").required(true).index(2)),
         )
         .subcommand(
             App::new("rm")
                 .about("Remove key-value pair according to the key")
-                .arg(
-                    Arg::new("KEY")
-                        .required(true)
-                        .index(1)
-                )
+                .arg(Arg::new("KEY").required(true).index(1)),
         )
         .get_matches();
 
