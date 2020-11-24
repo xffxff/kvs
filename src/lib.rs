@@ -10,6 +10,12 @@ pub struct KvStore {
     hash_map: HashMap<String, String>,
 }
 
+impl Default for KvStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KvStore {
     /// Returns a new key value store
     /// 
@@ -19,7 +25,7 @@ impl KvStore {
     /// use kvs::KvStore;
     /// let kvs = KvStore::new();
     /// ```
-    pub fn new() -> KvStore {
+    pub fn new() -> Self {
         let hash_map = HashMap::new();
         KvStore{hash_map}
     }
