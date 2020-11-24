@@ -1,5 +1,11 @@
+#![deny(missing_docs)]
+//! # kvs
+//! 
+//! `kvs` is a simple in-memory key/value store that maps strings
+//! to strings.
 use std::collections::HashMap;
 
+/// Using hash map store key/value
 pub struct KvStore {
     hash_map: HashMap<String, String>,
 }
