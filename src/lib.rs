@@ -24,7 +24,7 @@ impl KvStore {
     /// 
     /// ```
     /// use kvs::KvStore;
-    /// let kvs = KvStore::new();
+    /// let mut kvs = KvStore::new();
     /// 
     /// kvs.set("key1".to_owned(), "value1".to_owned());
     /// ```
@@ -57,7 +57,7 @@ impl KvStore {
     /// 
     /// ```
     /// use kvs::KvStore;
-    /// let kvs = KvStore::new();
+    /// let mut kvs = KvStore::new();
     /// 
     /// kvs.remove("key1".to_owned());
     /// ```
