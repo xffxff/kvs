@@ -1,34 +1,40 @@
-extern crate clap;
-use clap::{crate_authors, crate_name, crate_version, App, Arg};
 use std::process;
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+pub struct Set {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct Get {
+    pub key: String,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct Remove {
+    pub key: String,
+}
+
+#[derive(Debug, StructOpt)]
+pub enum Command {
+    #[structopt(name = "set", about = "Stores a key/value pair")]
+    Set(Set),
+    #[structopt(name = "get", about = "Gets value according to the key")]
+    Get(Get),
+    #[structopt(name = "rm", about = "Removes key/value pair according to the key")]
+    Remove(Remove),
+}
+
+#[derive(Debug, StructOpt)]
+pub struct ApplicationArguments {
+    #[structopt(subcommand)]
+    pub command: Command,
+}
 
 fn main() {
-    let matches = App::new(crate_name!())
-        .about("A kv store")
-        .version(crate_version!())
-        .author(crate_authors!())
-        .subcommand(
-            App::new("get")
-                .about("Gets value according to the key")
-                .arg(Arg::new("KEY").required(true).index(1)),
-        )
-        .subcommand(
-            App::new("set")
-                .about("Sets key-value pair")
-                .arg(Arg::new("KEY").required(true).index(1))
-                .arg(Arg::new("VALUE").required(true).index(2)),
-        )
-        .subcommand(
-            App::new("rm")
-                .about("Remove key-value pair according to the key")
-                .arg(Arg::new("KEY").required(true).index(1)),
-        )
-        .get_matches();
-
-    match matches.subcommand_name() {
-        _ => {
-            eprintln!("unimplemented");
-            process::exit(1);
-        }
-    }
+    ApplicationArguments::from_args();
+    eprintln!("unimplemented");
+    process::exit(1);
 }
