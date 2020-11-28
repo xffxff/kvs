@@ -4,6 +4,12 @@
 //! `kvs` is a simple in-memory key/value store that maps strings
 //! to strings.
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::result;
+use std::num::ParseIntError;
+
+/// 
+pub type Result<T> = result::Result<T, ParseIntError>;
 
 /// Using hash map store key/value
 pub struct KvStore {
@@ -29,6 +35,18 @@ impl KvStore {
         let hash_map = HashMap::new();
         KvStore { hash_map }
     }
+    
+    /// Open the KvStore at a given path. Return the KvStore.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use kvs::KvStore;
+    /// let kvs = KvStore::open().unwrap();
+    /// ```
+    pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
+        Ok(KvStore::new())
+    }
 
     /// Store one key value pair
     ///
@@ -40,8 +58,9 @@ impl KvStore {
     ///
     /// kvs.set("key1".to_owned(), "value1".to_owned());
     /// ```
-    pub fn set(&mut self, key: String, value: String) {
+    pub fn set(&mut self, key: String, value: String) -> Result<()> {
         self.hash_map.insert(key, value);
+        Ok(())
     }
 
     /// Get value according to the key
@@ -54,10 +73,10 @@ impl KvStore {
     ///
     /// kvs.get("key1".to_owned());
     /// ```
-    pub fn get(&self, key: String) -> Option<String> {
+    pub fn get(&self, key: String) -> Result<Option<String>> {
         match self.hash_map.get(&key) {
-            Some(value) => Some(value.to_owned()),
-            None => None,
+            Some(value) => Ok(Some(value.to_owned())),
+            None => Ok(None),
         }
     }
 
@@ -71,7 +90,8 @@ impl KvStore {
     ///
     /// kvs.remove("key1".to_owned());
     /// ```
-    pub fn remove(&mut self, key: String) {
+    pub fn remove(&mut self, key: String) -> Result<()> {
         self.hash_map.remove(&key);
+        Ok(())
     }
 }
