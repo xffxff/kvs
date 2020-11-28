@@ -1,5 +1,6 @@
 use std::process;
 use structopt::StructOpt;
+use kvs::Result;
 
 #[derive(Debug, StructOpt)]
 pub struct Set {
@@ -33,7 +34,7 @@ pub struct ApplicationArguments {
     pub command: Command,
 }
 
-fn main() {
+fn main() -> Result<()> {
     ApplicationArguments::from_args();
     eprintln!("unimplemented");
     process::exit(1);

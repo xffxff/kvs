@@ -6,10 +6,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::result;
-use std::num::ParseIntError;
+use failure::Error;
 
-/// 
-pub type Result<T> = result::Result<T, ParseIntError>;
+/// Using Error as error type
+pub type Result<T> = result::Result<T, Error>;
 
 /// Using hash map store key/value
 pub struct KvStore {
@@ -45,7 +45,7 @@ impl KvStore {
     /// let kvs = KvStore::open().unwrap();
     /// ```
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
-        Ok(KvStore::new())
+        panic!("open failed")
     }
 
     /// Store one key value pair
