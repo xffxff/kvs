@@ -3,8 +3,14 @@
 //!
 //! `kvs` is a simple in-memory key/value store that maps strings
 //! to strings.
+#[macro_use]
+extern crate bson;
+use bson::Document;
 use failure::Error;
 use std::collections::HashMap;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
 use std::result;
 
@@ -13,7 +19,8 @@ pub type Result<T> = result::Result<T, Error>;
 
 /// Using hash map store key/value
 pub struct KvStore {
-    hash_map: HashMap<String, String>,
+    file: File,
+    index: HashMap<String, u64>,
 }
 
 impl Default for KvStore {
@@ -32,8 +39,33 @@ impl KvStore {
     /// let kvs = KvStore::new();
     /// ```
     pub fn new() -> Self {
-        let hash_map = HashMap::new();
-        KvStore { hash_map }
+        let mut f = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .append(true)
+            .open("log.bson")
+            .unwrap();
+
+        let mut index = HashMap::new();
+        let mut last_log_pointer: u64 = 0;
+        while let Ok(deserialized) = Document::from_reader(&mut f) {
+            let doc: Document = bson::from_document(deserialized).unwrap();
+            let key = doc.get_str("key").unwrap();
+            match doc.get_str("value") {
+                Ok(_) => {
+                    index.insert(key.to_owned(), last_log_pointer);
+                }
+                Err(_) => {
+                    index.remove(key);
+                }
+            }
+            last_log_pointer = f.seek(SeekFrom::Current(0)).unwrap();
+        }
+        KvStore {
+            file: f,
+            index: index,
+        }
     }
 
     /// Open the KvStore at a given path. Return the KvStore.
@@ -59,7 +91,11 @@ impl KvStore {
     /// kvs.set("key1".to_owned(), "value1".to_owned());
     /// ```
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        self.hash_map.insert(key, value);
+        let set = doc! {
+            "key": key,
+            "value": value,
+        };
+        set.to_writer(&mut self.file)?;
         Ok(())
     }
 
@@ -73,10 +109,21 @@ impl KvStore {
     ///
     /// kvs.get("key1".to_owned());
     /// ```
-    pub fn get(&self, key: String) -> Result<Option<String>> {
-        match self.hash_map.get(&key) {
-            Some(value) => Ok(Some(value.to_owned())),
-            None => Ok(None),
+    pub fn get(&mut self, key: String) -> Result<Option<String>> {
+        match self.index.get(&key) {
+            Some(log_pointer) => {
+                self.file
+                    .seek(SeekFrom::Start(log_pointer.to_owned()))
+                    .unwrap();
+                let deserialized = Document::from_reader(&mut self.file).unwrap();
+                let doc: Document = bson::from_document(deserialized).unwrap();
+                let value = doc.get_str("value").unwrap();
+                Ok(Some(value.to_owned()))
+            }
+            None => {
+                println!("Key not found");
+                Ok(None)
+            }
         }
     }
 
@@ -91,7 +138,15 @@ impl KvStore {
     /// kvs.remove("key1".to_owned());
     /// ```
     pub fn remove(&mut self, key: String) -> Result<()> {
-        self.hash_map.remove(&key);
+        match self.index.get(&key) {
+            Some(_) => {
+                let rm = doc! {
+                    "key": key
+                };
+                rm.to_writer(&mut self.file)?;
+            }
+            None => println!("Key not found"),
+        }
         Ok(())
     }
 }

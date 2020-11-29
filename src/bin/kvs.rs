@@ -1,11 +1,5 @@
-use bson::Document;
-use kvs::Result;
+use kvs::{KvStore, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs::File;
-use std::fs::OpenOptions;
-use std::io::Seek;
-use std::io::SeekFrom;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize)]
@@ -24,75 +18,22 @@ pub struct ApplicationArguments {
     pub command: Command,
 }
 
-fn build_index(mut file: &mut File) -> HashMap<String, u64> {
-    let mut index: HashMap<String, u64> = HashMap::new();
-    let mut last_log_pointer: u64 = 0;
-    while let Ok(deserialized) = Document::from_reader(&mut file) {
-        let cmd: Command = bson::from_document(deserialized).unwrap();
-        match cmd {
-            Command::Set { ref key, value: _ } => {
-                index.insert(key.to_owned(), last_log_pointer);
-            }
-            Command::Remove { ref key } => {
-                index.remove(key);
-            }
-            _ => {
-                println!("Invalid log")
-            }
-        }
-        last_log_pointer = file.seek(SeekFrom::Current(0)).unwrap();
-    }
-    return index;
-}
-
 fn main() -> Result<()> {
     let opt = ApplicationArguments::from_args();
-    let mut f = OpenOptions::new()
-        .write(true)
-        .read(true)
-        .create(true)
-        .append(true)
-        .open("log.bson")
-        .unwrap();
+
+    let mut kvs = KvStore::new();
 
     match opt.command {
         Command::Set { ref key, ref value } => {
-            let set = Command::Set {
-                key: key.to_owned(),
-                value: value.to_owned(),
-            };
-            let serialized = bson::to_bson(&set).unwrap();
-            serialized.as_document().unwrap().to_writer(&mut f).unwrap();
+            kvs.set(key.to_owned(), value.to_owned()).unwrap();
         }
         Command::Get { ref key } => {
-            let index = build_index(&mut f);
-            match index.get(key) {
-                Some(log_pointer) => {
-                    f.seek(SeekFrom::Start(log_pointer.to_owned())).unwrap();
-                    let deserialized = Document::from_reader(&mut f).unwrap();
-                    let cmd: Command = bson::from_document(deserialized).unwrap();
-                    match cmd {
-                        Command::Set { key: _, ref value } => {
-                            println!("{}", value);
-                        }
-                        _ => println!("Key not found"),
-                    }
-                }
-                None => println!("Key not found"),
-            }
+            kvs.get(key.to_owned())
+                .unwrap()
+                .map(|value| println!("{}", value));
         }
         Command::Remove { ref key } => {
-            let index = build_index(&mut f);
-            match index.get(key) {
-                Some(_) => {
-                    let rm = Command::Remove {
-                        key: key.to_owned(),
-                    };
-                    let serialized = bson::to_bson(&rm).unwrap();
-                    serialized.as_document().unwrap().to_writer(&mut f).unwrap();
-                }
-                None => println!("Key not found"),
-            }
+            kvs.remove(key.to_owned()).unwrap();
         }
     }
     Ok(())
