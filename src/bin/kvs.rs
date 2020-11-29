@@ -2,26 +2,11 @@ use bson::Document;
 use kvs::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Seek;
 use std::io::SeekFrom;
 use structopt::StructOpt;
-
-// #[derive(Debug, StructOpt, Serialize, Deserialize)]
-// pub struct Set {
-//     pub key: String,
-//     pub value: String,
-// }
-
-// #[derive(Debug, StructOpt, Serialize, Deserialize)]
-// pub struct Get {
-//     pub key: String,
-// }
-
-// #[derive(Debug, StructOpt, Serialize, Deserialize)]
-// pub struct Remove {
-//     pub key: String,
-// }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize)]
 pub enum Command {
@@ -39,6 +24,27 @@ pub struct ApplicationArguments {
     pub command: Command,
 }
 
+fn build_index(mut file: &mut File) -> HashMap<String, u64> {
+    let mut index: HashMap<String, u64> = HashMap::new();
+    let mut last_log_pointer: u64 = 0;
+    while let Ok(deserialized) = Document::from_reader(&mut file) {
+        let cmd: Command = bson::from_document(deserialized).unwrap();
+        match cmd {
+            Command::Set { ref key, value: _ } => {
+                index.insert(key.to_owned(), last_log_pointer);
+            }
+            Command::Remove { ref key } => {
+                index.remove(key);
+            }
+            _ => {
+                println!("Invalid log")
+            }
+        }
+        last_log_pointer = file.seek(SeekFrom::Current(0)).unwrap();
+    }
+    return index;
+}
+
 fn main() -> Result<()> {
     let opt = ApplicationArguments::from_args();
     let mut f = OpenOptions::new()
@@ -48,7 +54,6 @@ fn main() -> Result<()> {
         .append(true)
         .open("log.bson")
         .unwrap();
-    let mut index: HashMap<String, u64> = HashMap::new();
 
     match opt.command {
         Command::Set { ref key, ref value } => {
@@ -60,22 +65,7 @@ fn main() -> Result<()> {
             serialized.as_document().unwrap().to_writer(&mut f).unwrap();
         }
         Command::Get { ref key } => {
-            let mut last_log_pointer: u64 = 0;
-            while let Ok(deserialized) = Document::from_reader(&mut f) {
-                let cmd: Command = bson::from_document(deserialized).unwrap();
-                match cmd {
-                    Command::Set { ref key, value: _ } => {
-                        index.insert(key.to_owned(), last_log_pointer);
-                    }
-                    Command::Remove { ref key } => {
-                        index.remove(key);
-                    }
-                    _ => {
-                        println!("Invalid log")
-                    }
-                }
-                last_log_pointer = f.seek(SeekFrom::Current(0)).unwrap();
-            }
+            let index = build_index(&mut f);
             match index.get(key) {
                 Some(log_pointer) => {
                     f.seek(SeekFrom::Start(log_pointer.to_owned())).unwrap();
@@ -92,23 +82,7 @@ fn main() -> Result<()> {
             }
         }
         Command::Remove { ref key } => {
-            let mut last_log_pointer: u64 = 0;
-            while let Ok(deserialized) = Document::from_reader(&mut f) {
-                let cmd: Command = bson::from_document(deserialized).unwrap();
-                match cmd {
-                    Command::Set { ref key, value: _ } => {
-                        index.insert(key.to_owned(), last_log_pointer);
-                    }
-                    Command::Remove { ref key } => {
-                        index.remove(key);
-                    }
-                    _ => {
-                        println!("Invalid log")
-                    }
-                }
-                last_log_pointer = f.seek(SeekFrom::Current(0)).unwrap();
-            }
-
+            let index = build_index(&mut f);
             match index.get(key) {
                 Some(_) => {
                     let rm = Command::Remove {
