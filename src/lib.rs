@@ -3,10 +3,10 @@
 //!
 //! `kvs` is a simple in-memory key/value store that maps strings
 //! to strings.
+use failure::Error;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::result;
-use failure::Error;
 
 /// Using Error as error type
 pub type Result<T> = result::Result<T, Error>;
@@ -35,11 +35,11 @@ impl KvStore {
         let hash_map = HashMap::new();
         KvStore { hash_map }
     }
-    
+
     /// Open the KvStore at a given path. Return the KvStore.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use kvs::KvStore;
     /// let kvs = KvStore::open().unwrap();
