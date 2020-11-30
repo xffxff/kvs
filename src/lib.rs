@@ -91,9 +91,11 @@ impl KvStore {
     /// ```
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
         let set = doc! {
-            "key": key,
+            "key": key.clone(),
             "value": value,
         };
+        let log_pointer = self.file.seek(SeekFrom::Current(0)).unwrap();
+        self.index.insert(key, log_pointer);
         set.to_writer(&mut self.file)?;
         Ok(())
     }
@@ -140,9 +142,10 @@ impl KvStore {
         match self.index.get(&key) {
             Some(_) => {
                 let rm = doc! {
-                    "key": key
+                    "key": key.clone()
                 };
                 rm.to_writer(&mut self.file)?;
+                self.index.remove(&key);
             }
             None => {
                 println!("Key not found");
