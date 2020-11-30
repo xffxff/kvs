@@ -5,6 +5,8 @@
 //! to strings.
 #[macro_use]
 extern crate bson;
+#[macro_use]
+extern crate failure;
 use bson::Document;
 use failure::Error;
 use std::collections::HashMap;
@@ -47,21 +49,7 @@ impl KvStore {
             .open("log.bson")
             .unwrap();
 
-        let mut index = HashMap::new();
-        let mut last_log_pointer: u64 = 0;
-        while let Ok(deserialized) = Document::from_reader(&mut f) {
-            let doc: Document = bson::from_document(deserialized).unwrap();
-            let key = doc.get_str("key").unwrap();
-            match doc.get_str("value") {
-                Ok(_) => {
-                    index.insert(key.to_owned(), last_log_pointer);
-                }
-                Err(_) => {
-                    index.remove(key);
-                }
-            }
-            last_log_pointer = f.seek(SeekFrom::Current(0)).unwrap();
-        }
+        let index = KvStore::build_index(&mut f);
         KvStore {
             file: f,
             index: index,
@@ -77,7 +65,18 @@ impl KvStore {
     /// let kvs = KvStore::open().unwrap();
     /// ```
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
-        panic!("open failed")
+        let mut f = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .append(true)
+            .open(path.into().join("log.bson"))
+            .unwrap();
+        let index = KvStore::build_index(&mut f);
+        Ok(KvStore {
+            file: f,
+            index: index,
+        })
     }
 
     /// Store one key value pair
@@ -145,8 +144,30 @@ impl KvStore {
                 };
                 rm.to_writer(&mut self.file)?;
             }
-            None => println!("Key not found"),
+            None => {
+                println!("Key not found");
+                return Err(format_err!("Key not found"));
+            }
         }
         Ok(())
+    }
+
+    fn build_index(mut f: &mut File) -> HashMap<String, u64> {
+        let mut index: HashMap<String, u64> = HashMap::new();
+        let mut last_log_pointer: u64 = 0;
+        while let Ok(deserialized) = Document::from_reader(&mut f) {
+            let doc: Document = bson::from_document(deserialized).unwrap();
+            let key = doc.get_str("key").unwrap();
+            match doc.get_str("value") {
+                Ok(_) => {
+                    index.insert(key.to_owned(), last_log_pointer);
+                }
+                Err(_) => {
+                    index.remove(key);
+                }
+            }
+            last_log_pointer = f.seek(SeekFrom::Current(0)).unwrap();
+        }
+        return index;
     }
 }
