@@ -28,9 +28,7 @@ fn main() -> Result<()> {
             kvs.set(key.to_owned(), value.to_owned()).unwrap();
         }
         Command::Get { ref key } => {
-            kvs.get(key.to_owned())
-                .unwrap()
-                .map(|value| println!("{}", value));
+            kvs.get(key.to_owned()).unwrap();
         }
         Command::Remove { ref key } => {
             kvs.remove(key.to_owned()).unwrap();

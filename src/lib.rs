@@ -4,11 +4,10 @@
 //! `kvs` is a simple in-memory key/value store that maps strings
 //! to strings.
 #[macro_use]
-extern crate bson;
-#[macro_use]
 extern crate failure;
 use bson::Document;
 use failure::Error;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -23,6 +22,13 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct KvStore {
     file: File,
     index: HashMap<String, u64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+enum Command {
+    Set { key: String, value: String },
+    Get { key: String },
+    Remove { key: String },
 }
 
 impl Default for KvStore {
@@ -50,10 +56,7 @@ impl KvStore {
             .unwrap();
 
         let index = KvStore::build_index(&mut f).unwrap();
-        KvStore {
-            file: f,
-            index: index,
-        }
+        KvStore { file: f, index }
     }
 
     /// Open the KvStore at a given path. Return the KvStore.
@@ -72,10 +75,7 @@ impl KvStore {
             .append(true)
             .open(path.into().join("log.bson"))?;
         let index = KvStore::build_index(&mut f)?;
-        Ok(KvStore {
-            file: f,
-            index: index,
-        })
+        Ok(KvStore { file: f, index })
     }
 
     /// Store one key value pair
@@ -89,13 +89,11 @@ impl KvStore {
     /// kvs.set("key1".to_owned(), "value1".to_owned());
     /// ```
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        let set = doc! {
-            "key": key.clone(),
-            "value": value,
-        };
         let log_pointer = self.file.seek(SeekFrom::Current(0))?;
-        self.index.insert(key, log_pointer);
-        set.to_writer(&mut self.file)?;
+        self.index.insert(key.clone(), log_pointer);
+        let set = Command::Set { key, value };
+        let serialized = bson::to_document(&set)?;
+        serialized.to_writer(&mut self.file)?;
         Ok(())
     }
 
@@ -114,9 +112,11 @@ impl KvStore {
             Some(log_pointer) => {
                 self.file.seek(SeekFrom::Start(log_pointer.to_owned()))?;
                 let deserialized = Document::from_reader(&mut self.file)?;
-                let doc: Document = bson::from_document(deserialized)?;
-                let value = doc.get_str("value")?;
-                Ok(Some(value.to_owned()))
+                let cmd: Command = bson::from_document(deserialized)?;
+                match cmd {
+                    Command::Set { key: _, ref value } => Ok(Some(value.to_owned())),
+                    _ => Err(format_err!("Not valid log")),
+                }
             }
             None => {
                 println!("Key not found");
@@ -138,10 +138,9 @@ impl KvStore {
     pub fn remove(&mut self, key: String) -> Result<()> {
         match self.index.get(&key) {
             Some(_) => {
-                let rm = doc! {
-                    "key": key.clone()
-                };
-                rm.to_writer(&mut self.file)?;
+                let rm = Command::Remove { key: key.clone() };
+                let serialized = bson::to_document(&rm)?;
+                serialized.to_writer(&mut self.file)?;
                 self.index.remove(&key);
             }
             None => {
@@ -156,14 +155,16 @@ impl KvStore {
         let mut index: HashMap<String, u64> = HashMap::new();
         let mut last_log_pointer: u64 = 0;
         while let Ok(deserialized) = Document::from_reader(&mut f) {
-            let doc: Document = bson::from_document(deserialized)?;
-            let key = doc.get_str("key")?;
-            match doc.get_str("value") {
-                Ok(_) => {
+            let doc: Command = bson::from_document(deserialized)?;
+            match doc {
+                Command::Set { ref key, value: _ } => {
                     index.insert(key.to_owned(), last_log_pointer);
                 }
-                Err(_) => {
+                Command::Remove { ref key } => {
                     index.remove(key);
+                }
+                _ => {
+                    return Err(format_err!("Not valid log"));
                 }
             }
             last_log_pointer = f.seek(SeekFrom::Current(0))?;
