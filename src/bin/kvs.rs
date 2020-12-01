@@ -1,8 +1,7 @@
 use kvs::{KvStore, Result};
-use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(Debug, StructOpt, Serialize, Deserialize)]
+#[derive(Debug, StructOpt)]
 pub enum Command {
     #[structopt(name = "set", about = "Stores a key/value pair")]
     Set { key: String, value: String },
@@ -28,7 +27,8 @@ fn main() -> Result<()> {
             kvs.set(key.to_owned(), value.to_owned()).unwrap();
         }
         Command::Get { ref key } => {
-            kvs.get(key.to_owned()).unwrap();
+            if let Some(value) = kvs.get(key.to_owned())
+                .unwrap() { println!("{}", value) }
         }
         Command::Remove { ref key } => {
             kvs.remove(key.to_owned()).unwrap();
