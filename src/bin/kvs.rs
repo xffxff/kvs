@@ -1,5 +1,6 @@
 use kvs::{KvStore, Result};
 use structopt::StructOpt;
+use std::path::Path;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
@@ -20,7 +21,8 @@ pub struct ApplicationArguments {
 fn main() -> Result<()> {
     let opt = ApplicationArguments::from_args();
 
-    let mut kvs = KvStore::new();
+    let path = Path::new("./");
+    let mut kvs = KvStore::open(path)?;
 
     match opt.command {
         Command::Set { ref key, ref value } => {

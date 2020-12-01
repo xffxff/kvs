@@ -31,34 +31,7 @@ enum Command {
     Remove { key: String },
 }
 
-impl Default for KvStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl KvStore {
-    /// Returns a new key value store
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use kvs::KvStore;
-    /// let kvs = KvStore::new();
-    /// ```
-    pub fn new() -> Self {
-        let mut f = OpenOptions::new()
-            .write(true)
-            .read(true)
-            .create(true)
-            .append(true)
-            .open("log.bson")
-            .unwrap();
-
-        let index = KvStore::build_index(&mut f).unwrap();
-        KvStore { file: f, index }
-    }
-
     /// Open the KvStore at a given path. Return the KvStore.
     ///
     /// # Examples
