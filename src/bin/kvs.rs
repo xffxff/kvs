@@ -29,8 +29,10 @@ fn main() -> Result<()> {
             kvs.set(key.to_owned(), value.to_owned()).unwrap();
         }
         Command::Get { ref key } => {
-            if let Some(value) = kvs.get(key.to_owned())
-                .unwrap() { println!("{}", value) }
+            match kvs.get(key.to_owned()).unwrap() {
+                Some(value) => println!("{}", value),
+                None => println!("Key not found")
+            }
         }
         Command::Remove { ref key } => {
             kvs.remove(key.to_owned()).unwrap();

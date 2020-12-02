@@ -92,7 +92,6 @@ impl KvStore {
                 }
             }
             None => {
-                println!("Key not found");
                 Ok(None)
             }
         }
