@@ -1,6 +1,6 @@
 use kvs::{KvStore, Result};
-use structopt::StructOpt;
 use std::path::Path;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
@@ -28,12 +28,10 @@ fn main() -> Result<()> {
         Command::Set { ref key, ref value } => {
             kvs.set(key.to_owned(), value.to_owned()).unwrap();
         }
-        Command::Get { ref key } => {
-            match kvs.get(key.to_owned()).unwrap() {
-                Some(value) => println!("{}", value),
-                None => println!("Key not found")
-            }
-        }
+        Command::Get { ref key } => match kvs.get(key.to_owned()).unwrap() {
+            Some(value) => println!("{}", value),
+            None => println!("Key not found"),
+        },
         Command::Remove { ref key } => {
             kvs.remove(key.to_owned()).unwrap();
         }

@@ -9,12 +9,12 @@ use bson::Document;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
 use std::result;
-use std::fs;
 
 /// Using Error as error type
 pub type Result<T> = result::Result<T, Error>;
@@ -52,7 +52,12 @@ impl KvStore {
             .append(true)
             .open(&path.join("log.bson"))?;
         let (index, log_count) = KvStore::build_index(&mut f)?;
-        Ok(KvStore { file: f, path: path.into(), index: index, log_count: log_count })
+        Ok(KvStore {
+            file: f,
+            path,
+            index,
+            log_count,
+        })
     }
 
     /// Store one key value pair
@@ -71,7 +76,7 @@ impl KvStore {
         let set = Command::Set { key, value };
         let serialized = bson::to_document(&set)?;
         serialized.to_writer(&mut self.file)?;
-        self.log_count += 1;            
+        self.log_count += 1;
 
         let index_len = self.index.len() as u32;
         if self.log_count > 2 * index_len {
@@ -82,11 +87,10 @@ impl KvStore {
                 .open(self.path.join("tmp.bson"))?;
 
             let old_index = self.index.clone();
-            let mut index :HashMap<String, u64> = HashMap::new();
+            let mut index: HashMap<String, u64> = HashMap::new();
             self.log_count = 0;
-            for (key, old_log_pointer) in old_index {
+            for (key, _) in old_index {
                 if let Some(value) = self.get(key.clone()).unwrap() {
-                    // println!("{}: {}", key, old_log_pointer);
                     let log_pointer = f.seek(SeekFrom::Current(0))?;
                     index.insert(key.clone(), log_pointer);
                     let set = Command::Set { key, value };
@@ -123,9 +127,7 @@ impl KvStore {
                     _ => Err(format_err!("Not valid log")),
                 }
             }
-            None => {
-                Ok(None)
-            }
+            None => Ok(None),
         }
     }
 
