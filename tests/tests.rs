@@ -281,6 +281,7 @@ fn compaction() -> Result<()> {
         }
 
         let new_size = dir_size();
+        println!("{}", dir_size());
         if new_size > current_size {
             current_size = new_size;
             continue;

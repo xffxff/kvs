@@ -14,6 +14,7 @@ use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
 use std::result;
+use std::fs;
 
 /// Using Error as error type
 pub type Result<T> = result::Result<T, Error>;
@@ -21,7 +22,9 @@ pub type Result<T> = result::Result<T, Error>;
 /// Using hash map store key/value
 pub struct KvStore {
     file: File,
+    path: PathBuf,
     index: HashMap<String, u64>,
+    log_count: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,17 +41,18 @@ impl KvStore {
     ///
     /// ```
     /// use kvs::KvStore;
-    /// let kvs = KvStore::open().unwrap();
+    /// let kvs = KvStore::open("./").unwrap();
     /// ```
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
+        let path = path.into();
         let mut f = OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
             .append(true)
-            .open(path.into().join("log.bson"))?;
-        let index = KvStore::build_index(&mut f)?;
-        Ok(KvStore { file: f, index })
+            .open(&path.join("log.bson"))?;
+        let (index, log_count) = KvStore::build_index(&mut f)?;
+        Ok(KvStore { file: f, path: path.into(), index: index, log_count: log_count })
     }
 
     /// Store one key value pair
@@ -57,7 +61,7 @@ impl KvStore {
     ///
     /// ```
     /// use kvs::KvStore;
-    /// let mut kvs = KvStore::new();
+    /// let mut kvs = KvStore::open("./").unwrap();
     ///
     /// kvs.set("key1".to_owned(), "value1".to_owned());
     /// ```
@@ -67,6 +71,34 @@ impl KvStore {
         let set = Command::Set { key, value };
         let serialized = bson::to_document(&set)?;
         serialized.to_writer(&mut self.file)?;
+        self.log_count += 1;            
+
+        let index_len = self.index.len() as u32;
+        if self.log_count > 2 * index_len {
+            let mut f = OpenOptions::new()
+                .write(true)
+                .read(true)
+                .create(true)
+                .open(self.path.join("tmp.bson"))?;
+
+            let old_index = self.index.clone();
+            let mut index :HashMap<String, u64> = HashMap::new();
+            self.log_count = 0;
+            for (key, old_log_pointer) in old_index {
+                if let Some(value) = self.get(key.clone()).unwrap() {
+                    // println!("{}: {}", key, old_log_pointer);
+                    let log_pointer = f.seek(SeekFrom::Current(0))?;
+                    index.insert(key.clone(), log_pointer);
+                    let set = Command::Set { key, value };
+                    let serialized = bson::to_document(&set)?;
+                    serialized.to_writer(&mut f)?;
+                    self.log_count += 1;
+                }
+            }
+            self.file = f;
+            self.index = index;
+            fs::rename(self.path.join("tmp.bson"), self.path.join("log.bson"))?;
+        }
         Ok(())
     }
 
@@ -76,7 +108,7 @@ impl KvStore {
     ///
     /// ```
     /// use kvs::KvStore;
-    /// let kvs = KvStore::new();
+    /// let mut kvs = KvStore::open("./").unwrap();
     ///
     /// kvs.get("key1".to_owned());
     /// ```
@@ -103,7 +135,7 @@ impl KvStore {
     ///
     /// ```
     /// use kvs::KvStore;
-    /// let mut kvs = KvStore::new();
+    /// let mut kvs = KvStore::open("./").unwrap();
     ///
     /// kvs.remove("key1".to_owned());
     /// ```
@@ -123,10 +155,12 @@ impl KvStore {
         Ok(())
     }
 
-    fn build_index(mut f: &mut File) -> Result<HashMap<String, u64>> {
+    fn build_index(mut f: &mut File) -> Result<(HashMap<String, u64>, u32)> {
         let mut index: HashMap<String, u64> = HashMap::new();
+        let mut log_count: u32 = 0;
         let mut last_log_pointer: u64 = 0;
         while let Ok(deserialized) = Document::from_reader(&mut f) {
+            log_count += 1;
             let doc: Command = bson::from_document(deserialized)?;
             match doc {
                 Command::Set { ref key, value: _ } => {
@@ -141,6 +175,6 @@ impl KvStore {
             }
             last_log_pointer = f.seek(SeekFrom::Current(0))?;
         }
-        Ok(index)
+        Ok((index, log_count))
     }
 }
