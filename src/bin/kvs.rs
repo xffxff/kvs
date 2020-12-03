@@ -1,30 +1,15 @@
-use std::process;
+use kvs::{KvStore, Result};
+use std::path::Path;
 use structopt::StructOpt;
-
-#[derive(Debug, StructOpt)]
-pub struct Set {
-    pub key: String,
-    pub value: String,
-}
-
-#[derive(Debug, StructOpt)]
-pub struct Get {
-    pub key: String,
-}
-
-#[derive(Debug, StructOpt)]
-pub struct Remove {
-    pub key: String,
-}
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
     #[structopt(name = "set", about = "Stores a key/value pair")]
-    Set(Set),
+    Set { key: String, value: String },
     #[structopt(name = "get", about = "Gets value according to the key")]
-    Get(Get),
+    Get { key: String },
     #[structopt(name = "rm", about = "Removes key/value pair according to the key")]
-    Remove(Remove),
+    Remove { key: String },
 }
 
 #[derive(Debug, StructOpt)]
@@ -33,8 +18,23 @@ pub struct ApplicationArguments {
     pub command: Command,
 }
 
-fn main() {
-    ApplicationArguments::from_args();
-    eprintln!("unimplemented");
-    process::exit(1);
+fn main() -> Result<()> {
+    let opt = ApplicationArguments::from_args();
+
+    let path = Path::new("./");
+    let mut kvs = KvStore::open(path)?;
+
+    match opt.command {
+        Command::Set { ref key, ref value } => {
+            kvs.set(key.to_owned(), value.to_owned()).unwrap();
+        }
+        Command::Get { ref key } => match kvs.get(key.to_owned()).unwrap() {
+            Some(value) => println!("{}", value),
+            None => println!("Key not found"),
+        },
+        Command::Remove { ref key } => {
+            kvs.remove(key.to_owned()).unwrap();
+        }
+    }
+    Ok(())
 }
