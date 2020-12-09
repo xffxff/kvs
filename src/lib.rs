@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 //! # kvs
 //!
 //! `kvs` is a simple in-memory key/value store that maps strings
@@ -15,6 +15,10 @@ use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
 use std::result;
+
+mod network;
+
+pub use crate::network::protocol;
 
 /// Using Error as error type
 pub type Result<T> = result::Result<T, Error>;

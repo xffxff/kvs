@@ -6,6 +6,10 @@ use kvs::Result;
 use structopt::StructOpt;
 use std::net::SocketAddr;
 use env_logger::Env;
+use std::net::TcpListener;
+use std::net::TcpStream;
+use std::io::prelude::*;
+use kvs::protocol;
 
 arg_enum! {
     #[allow(non_camel_case_types)]
@@ -36,20 +40,22 @@ fn main() -> Result<()> {
     info!("IP:PORT {:?}", opt.addr);
     info!("Engine: {:?}", opt.engine);
 
-    // let path = Path::new("./");
-    // let mut kvs = KvStore::open(path)?;
+    let listener = TcpListener::bind(opt.addr)?;
 
-    // match opt.command {
-    //     Command::Set { ref key, ref value, addr: _} => {
-    //         kvs.set(key.to_owned(), value.to_owned()).unwrap();
-    //     }
-    //     Command::Get { ref key, addr: _} => match kvs.get(key.to_owned()).unwrap() {
-    //         Some(value) => println!("{}", value),
-    //         None => println!("Key not found"),
-    //     },
-    //     Command::Remove { ref key, addr: _} => {
-    //         kvs.remove(key.to_owned()).unwrap();
-    //     }
-    // }
+    for stream in listener.incoming() {
+        let stream = stream.unwrap();
+        info!("connection from {:?}", stream.peer_addr().unwrap());
+
+        handle_connection(stream);
+    }
+
     Ok(())
+}
+
+fn handle_connection(mut stream: TcpStream) {
+    let mut buffer = [0; 1024];
+
+    let size = stream.read(&mut buffer).unwrap();
+    let request: protocol::Message = serde_json::from_slice(&buffer[..size]).unwrap();
+    println!("{:?}", request);
 }

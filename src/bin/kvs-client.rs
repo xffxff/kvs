@@ -2,6 +2,9 @@ use kvs::{KvStore, Result};
 use std::path::Path;
 use structopt::StructOpt;
 use std::net::SocketAddr;
+use std::net::TcpStream;
+use kvs::protocol;
+use std::io::prelude::*;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
@@ -35,19 +38,24 @@ pub struct ApplicationArguments {
 fn main() -> Result<()> {
     let opt = ApplicationArguments::from_args();
 
-    let path = Path::new("./");
-    let mut kvs = KvStore::open(path)?;
-
     match opt.command {
-        Command::Set { ref key, ref value, addr: _} => {
-            kvs.set(key.to_owned(), value.to_owned()).unwrap();
+        Command::Set { ref key, ref value, ref addr } => {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let request = protocol::Message::Set { key: key.to_owned(), value: value.to_owned() };
+            let request = serde_json::to_vec(&request).unwrap();
+            stream.write(&request).unwrap();
         }
-        Command::Get { ref key, addr: _} => match kvs.get(key.to_owned()).unwrap() {
-            Some(value) => println!("{}", value),
-            None => println!("Key not found"),
+        Command::Get { ref key, ref addr } => {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let request = protocol::Message::Get { key: key.to_owned() };
+            let request = serde_json::to_vec(&request).unwrap();
+            stream.write(&request).unwrap();
         },
-        Command::Remove { ref key, addr: _} => {
-            kvs.remove(key.to_owned()).unwrap();
+        Command::Remove { ref key, ref addr } => {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            let request = protocol::Message::Remove { key: key.to_owned() };
+            let request = serde_json::to_vec(&request).unwrap();
+            stream.write(&request).unwrap();
         }
     }
     Ok(())
