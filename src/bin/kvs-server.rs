@@ -2,14 +2,14 @@
 extern crate clap;
 #[macro_use]
 extern crate log;
-use kvs::Result;
-use structopt::StructOpt;
-use std::net::SocketAddr;
 use env_logger::Env;
+use kvs::protocol;
+use kvs::Result;
+use std::io::prelude::*;
+use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::net::TcpStream;
-use std::io::prelude::*;
-use kvs::protocol;
+use structopt::StructOpt;
 
 arg_enum! {
     #[allow(non_camel_case_types)]

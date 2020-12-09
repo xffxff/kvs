@@ -5,6 +5,6 @@ pub mod protocol {
     pub enum Message {
         Set { key: String, value: String },
         Get { key: String },
-        Remove { key: String }
+        Remove { key: String },
     }
 }
