@@ -3,13 +3,14 @@ extern crate clap;
 #[macro_use]
 extern crate log;
 use env_logger::Env;
-use kvs::protocol;
+use kvs::Message;
 use kvs::Result;
 use std::io::prelude::*;
 use std::net::SocketAddr;
 use std::net::TcpListener;
-use std::net::TcpStream;
 use structopt::StructOpt;
+use kvs::KvStore;
+use kvs::KvsEngine;
 
 arg_enum! {
     #[allow(non_camel_case_types)]
@@ -40,22 +41,53 @@ fn main() -> Result<()> {
     info!("IP:PORT {:?}", opt.addr);
     info!("Engine: {:?}", opt.engine);
 
+    let mut kv_store = KvStore::open("./")?;
+
     let listener = TcpListener::bind(opt.addr)?;
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
+        let mut stream = stream.unwrap();
         info!("connection from {:?}", stream.peer_addr().unwrap());
 
-        handle_connection(stream);
+        let mut buffer = [0; 1024];
+
+        let size = stream.read(&mut buffer).unwrap();
+        let request: Message = serde_json::from_slice(&buffer[..size]).unwrap();
+        match request {
+            Message::Set { ref key, ref value} => {
+                kv_store.set(key.to_owned(), value.to_owned())?;
+            },
+            Message::Get { ref key} => {
+                match kv_store.get(key.to_owned())? {
+                    Some(value) => {
+                        let response = Message::Reply { key: value.to_owned() };
+                        let response = serde_json::to_vec(&response)?;
+                        stream.write_all(&response)?;
+                    }
+                    None => {
+                        let response = Message::Reply { key: "Key not found".to_owned() };
+                        let response = serde_json::to_vec(&response)?;
+                        stream.write_all(&response)?;
+                    }
+                }
+            },
+            Message::Remove { ref key} => {
+                match kv_store.remove(key.to_owned()) {
+                    Err(_) => {
+                        let response = Message::Err { key: "Key not found".to_owned() };
+                        let response = serde_json::to_vec(&response)?;
+                        stream.write_all(&response)?;
+                    },
+                    Ok(_) => {
+                        let response = Message::Reply { key: "Ok".to_owned() };
+                        let response = serde_json::to_vec(&response)?;
+                        stream.write_all(&response)?;
+                    }
+                }
+            },
+            _ => {}
+        }
     }
 
     Ok(())
-}
-
-fn handle_connection(mut stream: TcpStream) {
-    let mut buffer = [0; 1024];
-
-    let size = stream.read(&mut buffer).unwrap();
-    let request: protocol::Message = serde_json::from_slice(&buffer[..size]).unwrap();
-    println!("{:?}", request);
 }

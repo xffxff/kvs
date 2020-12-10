@@ -135,7 +135,6 @@ impl KvsEngine for KvStore {
                 self.index.remove(&key);
             }
             None => {
-                println!("Key not found");
                 return Err(format_err!("Key not found"));
             }
         }

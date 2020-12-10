@@ -9,4 +9,4 @@ mod engine;
 mod network;
 
 pub use crate::engine::simple_kvs::*;
-pub use crate::network::protocol;
+pub use crate::network::protocol::Message;

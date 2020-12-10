@@ -1,4 +1,6 @@
-use kvs::protocol;
+#[macro_use]
+extern crate failure;
+use kvs::Message;
 use kvs::Result;
 use std::io::prelude::*;
 use std::net::SocketAddr;
@@ -44,7 +46,7 @@ fn main() -> Result<()> {
             ref addr,
         } => {
             let mut stream = TcpStream::connect(addr).unwrap();
-            let request = protocol::Message::Set {
+            let request = Message::Set {
                 key: key.to_owned(),
                 value: value.to_owned(),
             };
@@ -53,19 +55,38 @@ fn main() -> Result<()> {
         }
         Command::Get { ref key, ref addr } => {
             let mut stream = TcpStream::connect(addr).unwrap();
-            let request = protocol::Message::Get {
+            let request = Message::Get {
                 key: key.to_owned(),
             };
             let request = serde_json::to_vec(&request).unwrap();
             stream.write_all(&request).unwrap();
+
+            let mut buffer = [0; 1024];
+            let size = stream.read(&mut buffer).unwrap();
+            let response: Message = serde_json::from_slice(&buffer[..size])?;
+            match response {
+                Message::Reply { ref key } => println!("{}", key),
+                _ => {}
+            }
         }
         Command::Remove { ref key, ref addr } => {
             let mut stream = TcpStream::connect(addr).unwrap();
-            let request = protocol::Message::Remove {
+            let request = Message::Remove {
                 key: key.to_owned(),
             };
             let request = serde_json::to_vec(&request).unwrap();
             stream.write_all(&request).unwrap();
+
+            let mut buffer = [0; 1024];
+            let size = stream.read(&mut buffer).unwrap();
+            let response: Message = serde_json::from_slice(&buffer[..size])?;
+            match response {
+                Message::Err { ref key } => {
+                    eprintln!("{}", key);
+                    return Err(format_err!("Key not found"));
+                },
+                _ => {}
+            }
         }
     }
     Ok(())
