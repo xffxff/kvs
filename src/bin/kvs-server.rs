@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 use std::net::TcpListener;
 use structopt::StructOpt;
 use kvs::KvStore;
+use kvs::SledKVStore;
 use kvs::KvsEngine;
 
 arg_enum! {
@@ -41,7 +42,8 @@ fn main() -> Result<()> {
     info!("IP:PORT {:?}", opt.addr);
     info!("Engine: {:?}", opt.engine);
 
-    let mut kv_store = KvStore::open("./")?;
+    // let mut kv_store = KvStore::open("./")?;
+    let mut kv_store = SledKVStore::open("./hello")?;
 
     let listener = TcpListener::bind(opt.addr)?;
 
