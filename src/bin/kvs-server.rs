@@ -2,6 +2,8 @@
 extern crate clap;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate failure;
 use env_logger::Env;
 use kvs::Message;
 use kvs::Result;
@@ -13,10 +15,13 @@ use kvs::KvStore;
 use kvs::SledKVStore;
 use kvs::KvsEngine;
 use log::LevelFilter;
+use std::path::Path;
+use std::fs::OpenOptions;
+use serde::{Serialize, Deserialize};
 
 arg_enum! {
     #[allow(non_camel_case_types)]
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
     enum Engine {
         kvs,
         sled
@@ -44,8 +49,7 @@ fn main() -> Result<()> {
     info!("IP:PORT {:?}", opt.addr);
     info!("Engine: {:?}", opt.engine);
 
-    // let mut kv_store = KvStore::open("./")?;
-    let mut kv_store = SledKVStore::open("./hello")?;
+    let mut kv_store = get_engine(opt.engine)?;
 
     let listener = TcpListener::bind(opt.addr)?;
 
@@ -94,4 +98,56 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
+    let mut persisted_engine: Option<Engine> = None;
+    if Path::new("config").exists() {
+        let f = OpenOptions::new()
+            .read(true)
+            .open("config")?;
+        let engine = serde_json::from_reader(f)?;       
+        persisted_engine = Some(engine);
+    } 
+
+    let engine: Engine;
+    match possible_engine {
+        Some(v) => {
+            match persisted_engine {
+                Some(p) => {
+                    if v != p {
+                        return Err(format_err!("mismatch engine"));
+                    }
+                    engine = v;
+                },
+                None => { engine = v }
+            }
+        }
+        None => { 
+            match persisted_engine {
+                Some(v) => engine = v,
+                None => engine = Engine::kvs
+            }
+        }
+    }
+    
+    let f = OpenOptions::new()
+        .write(true)
+        .read(true)
+        .truncate(true)
+        .create(true)
+        .open("config")?;
+
+    match engine {
+        Engine::kvs => {
+            let kv_store = KvStore::open("./")?;
+            serde_json::to_writer(f, &engine)?;
+            Ok(Box::new(kv_store))
+        },
+        Engine::sled => {
+            let kv_store = SledKVStore::open("./")?;
+            serde_json::to_writer(f, &engine)?;
+            Ok(Box::new(kv_store))
+        }
+    }
 }
