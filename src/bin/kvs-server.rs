@@ -12,6 +12,7 @@ use structopt::StructOpt;
 use kvs::KvStore;
 use kvs::SledKVStore;
 use kvs::KvsEngine;
+use log::LevelFilter;
 
 arg_enum! {
     #[allow(non_camel_case_types)]
@@ -32,10 +33,11 @@ pub struct ApplicationArguments {
 }
 
 fn main() -> Result<()> {
-    let env = Env::default()
-        .filter_or("MY_LOG_LEVEL", "trace")
-        .write_style_or("MY_LOG_STYLE", "always");
-    env_logger::init_from_env(env);
+    // let env = Env::default()
+    //     .filter_or("MY_LOG_LEVEL", "debug")
+    //     .write_style_or("MY_LOG_STYLE", "always");
+    // env_logger::init_from_env(env);
+    simple_logging::log_to_stderr(LevelFilter::Info);
     let opt = ApplicationArguments::from_args();
 
     info!("server version: {}", env!("CARGO_PKG_VERSION"));
