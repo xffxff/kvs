@@ -7,6 +7,6 @@ pub mod protocol {
         Get { key: String },
         Remove { key: String },
         Reply { key: String },
-        Err { key: String }
+        Err { key: String },
     }
 }

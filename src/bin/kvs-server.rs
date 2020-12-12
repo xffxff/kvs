@@ -4,20 +4,19 @@ extern crate clap;
 extern crate log;
 #[macro_use]
 extern crate failure;
-use env_logger::Env;
+use kvs::KvStore;
+use kvs::KvsEngine;
 use kvs::Message;
 use kvs::Result;
+use kvs::SledKVStore;
+use log::LevelFilter;
+use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::SocketAddr;
 use std::net::TcpListener;
-use structopt::StructOpt;
-use kvs::KvStore;
-use kvs::SledKVStore;
-use kvs::KvsEngine;
-use log::LevelFilter;
 use std::path::Path;
-use std::fs::OpenOptions;
-use serde::{Serialize, Deserialize};
+use structopt::StructOpt;
 
 arg_enum! {
     #[allow(non_camel_case_types)]
@@ -38,10 +37,6 @@ pub struct ApplicationArguments {
 }
 
 fn main() -> Result<()> {
-    // let env = Env::default()
-    //     .filter_or("MY_LOG_LEVEL", "debug")
-    //     .write_style_or("MY_LOG_STYLE", "always");
-    // env_logger::init_from_env(env);
     simple_logging::log_to_stderr(LevelFilter::Info);
     let opt = ApplicationArguments::from_args();
 
@@ -62,35 +57,39 @@ fn main() -> Result<()> {
         let size = stream.read(&mut buffer).unwrap();
         let request: Message = serde_json::from_slice(&buffer[..size]).unwrap();
         match request {
-            Message::Set { ref key, ref value} => {
+            Message::Set { ref key, ref value } => {
                 kv_store.set(key.to_owned(), value.to_owned())?;
-            },
-            Message::Get { ref key} => {
-                match kv_store.get(key.to_owned())? {
-                    Some(value) => {
-                        let response = Message::Reply { key: value.to_owned() };
-                        let response = serde_json::to_vec(&response)?;
-                        stream.write_all(&response)?;
-                    }
-                    None => {
-                        let response = Message::Reply { key: "Key not found".to_owned() };
-                        let response = serde_json::to_vec(&response)?;
-                        stream.write_all(&response)?;
-                    }
+            }
+            Message::Get { ref key } => match kv_store.get(key.to_owned())? {
+                Some(value) => {
+                    let response = Message::Reply {
+                        key: value.to_owned(),
+                    };
+                    let response = serde_json::to_vec(&response)?;
+                    stream.write_all(&response)?;
+                }
+                None => {
+                    let response = Message::Reply {
+                        key: "Key not found".to_owned(),
+                    };
+                    let response = serde_json::to_vec(&response)?;
+                    stream.write_all(&response)?;
                 }
             },
-            Message::Remove { ref key} => {
-                match kv_store.remove(key.to_owned()) {
-                    Err(_) => {
-                        let response = Message::Err { key: "Key not found".to_owned() };
-                        let response = serde_json::to_vec(&response)?;
-                        stream.write_all(&response)?;
-                    },
-                    Ok(_) => {
-                        let response = Message::Reply { key: "Ok".to_owned() };
-                        let response = serde_json::to_vec(&response)?;
-                        stream.write_all(&response)?;
-                    }
+            Message::Remove { ref key } => match kv_store.remove(key.to_owned()) {
+                Err(_) => {
+                    let response = Message::Err {
+                        key: "Key not found".to_owned(),
+                    };
+                    let response = serde_json::to_vec(&response)?;
+                    stream.write_all(&response)?;
+                }
+                Ok(_) => {
+                    let response = Message::Reply {
+                        key: "Ok".to_owned(),
+                    };
+                    let response = serde_json::to_vec(&response)?;
+                    stream.write_all(&response)?;
                 }
             },
             _ => {}
@@ -103,34 +102,28 @@ fn main() -> Result<()> {
 fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
     let mut persisted_engine: Option<Engine> = None;
     if Path::new("config").exists() {
-        let f = OpenOptions::new()
-            .read(true)
-            .open("config")?;
-        let engine = serde_json::from_reader(f)?;       
+        let f = OpenOptions::new().read(true).open("config")?;
+        let engine = serde_json::from_reader(f)?;
         persisted_engine = Some(engine);
-    } 
+    }
 
     let engine: Engine;
     match possible_engine {
-        Some(v) => {
-            match persisted_engine {
-                Some(p) => {
-                    if v != p {
-                        return Err(format_err!("mismatch engine"));
-                    }
-                    engine = v;
-                },
-                None => { engine = v }
+        Some(v) => match persisted_engine {
+            Some(p) => {
+                if v != p {
+                    return Err(format_err!("mismatch engine"));
+                }
+                engine = v;
             }
-        }
-        None => { 
-            match persisted_engine {
-                Some(v) => engine = v,
-                None => engine = Engine::kvs
-            }
-        }
+            None => engine = v,
+        },
+        None => match persisted_engine {
+            Some(v) => engine = v,
+            None => engine = Engine::kvs,
+        },
     }
-    
+
     let f = OpenOptions::new()
         .write(true)
         .read(true)
@@ -143,7 +136,7 @@ fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
             let kv_store = KvStore::open("./")?;
             serde_json::to_writer(f, &engine)?;
             Ok(Box::new(kv_store))
-        },
+        }
         Engine::sled => {
             let kv_store = SledKVStore::open("./")?;
             serde_json::to_writer(f, &engine)?;

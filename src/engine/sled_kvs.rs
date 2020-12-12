@@ -3,7 +3,7 @@ use crate::Result;
 use std::path::PathBuf;
 
 pub struct SledKVStore {
-    pub db: sled::Db
+    pub db: sled::Db,
 }
 
 impl SledKVStore {
@@ -27,8 +27,8 @@ impl KvsEngine for SledKVStore {
             Some(value) => {
                 let value = String::from_utf8(value.to_vec())?;
                 Ok(Some(value))
-            },
-            None => Ok(None)
+            }
+            None => Ok(None),
         }
     }
 
@@ -44,4 +44,3 @@ impl KvsEngine for SledKVStore {
         Ok(())
     }
 }
-

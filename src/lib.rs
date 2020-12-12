@@ -9,5 +9,5 @@ mod engine;
 mod network;
 
 pub use crate::engine::simple_kvs::*;
-pub use crate::network::protocol::Message;
 pub use crate::engine::sled_kvs::*;
+pub use crate::network::protocol::Message;

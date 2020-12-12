@@ -84,7 +84,7 @@ fn main() -> Result<()> {
                 Message::Err { ref key } => {
                     eprintln!("{}", key);
                     return Err(format_err!("Key not found"));
-                },
+                }
                 _ => {}
             }
         }
