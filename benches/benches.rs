@@ -1,17 +1,14 @@
-extern crate rand_chacha;
 extern crate rand;
-use kvs::{KvStore, KvsEngine, SledKVStore};
-use tempfile::TempDir;
+extern crate rand_chacha;
 use criterion::{criterion_group, criterion_main, Criterion};
-use rand::{Rng, SeedableRng};
+use kvs::{KvStore, KvsEngine, SledKVStore};
 use rand::distributions::Alphanumeric;
+use rand::{Rng, SeedableRng};
+use tempfile::TempDir;
 
 fn random_string(rng: &mut impl rand::RngCore) -> String {
     let size = rng.gen_range(1, 100000);
-    let rand_string = rng
-        .sample_iter(&Alphanumeric)
-        .take(size)
-        .collect();
+    let rand_string = rng.sample_iter(&Alphanumeric).take(size).collect();
     return rand_string;
 }
 
@@ -63,7 +60,10 @@ pub fn kvs_read(c: &mut Criterion) {
     c.bench_function("kvs read", |b| {
         b.iter(|| {
             for key in &keys {
-                store.get(key.to_owned()).unwrap();
+                match store.get(key.to_owned()).unwrap() {
+                    None => assert!(false),
+                    _ => {}
+                }
             }
         });
     });
@@ -85,12 +85,14 @@ pub fn sled_read(c: &mut Criterion) {
     c.bench_function("sled read", |b| {
         b.iter(|| {
             for key in &keys {
-                store.get(key.to_owned()).unwrap();
+                match store.get(key.to_owned()).unwrap() {
+                    None => assert!(false),
+                    _ => {}
+                }
             }
         });
     });
 }
 
-// criterion_group!(benches, kvs_write, sled_write, kvs_read);
-criterion_group!(benches, kvs_read, sled_read);
+criterion_group!(benches, kvs_write, sled_write, kvs_read, sled_read);
 criterion_main!(benches);
