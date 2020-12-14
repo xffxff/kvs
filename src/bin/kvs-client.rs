@@ -65,7 +65,7 @@ fn main() -> Result<()> {
             let size = stream.read(&mut buffer).unwrap();
             let response: Message = serde_json::from_slice(&buffer[..size])?;
             match response {
-                Message::Reply { ref key } => println!("{}", key),
+                Message::Reply { ref reply } => println!("{}", reply),
                 _ => {}
             }
         }
@@ -81,8 +81,8 @@ fn main() -> Result<()> {
             let size = stream.read(&mut buffer).unwrap();
             let response: Message = serde_json::from_slice(&buffer[..size])?;
             match response {
-                Message::Err { ref key } => {
-                    eprintln!("{}", key);
+                Message::Err { ref err } => {
+                    eprintln!("{}", err);
                     return Err(format_err!("Key not found"));
                 }
                 _ => {}

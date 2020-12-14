@@ -1,4 +1,4 @@
-use crate::network::protocol::Message;
+use crate::network::Message;
 use bson::Document;
 use failure::Error;
 use std::collections::HashMap;

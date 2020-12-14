@@ -63,14 +63,14 @@ fn main() -> Result<()> {
             Message::Get { ref key } => match kv_store.get(key.to_owned())? {
                 Some(value) => {
                     let response = Message::Reply {
-                        key: value.to_owned(),
+                        reply: value.to_owned(),
                     };
                     let response = serde_json::to_vec(&response)?;
                     stream.write_all(&response)?;
                 }
                 None => {
                     let response = Message::Reply {
-                        key: "Key not found".to_owned(),
+                        reply: "Key not found".to_owned(),
                     };
                     let response = serde_json::to_vec(&response)?;
                     stream.write_all(&response)?;
@@ -79,14 +79,14 @@ fn main() -> Result<()> {
             Message::Remove { ref key } => match kv_store.remove(key.to_owned()) {
                 Err(_) => {
                     let response = Message::Err {
-                        key: "Key not found".to_owned(),
+                        err: "Key not found".to_owned(),
                     };
                     let response = serde_json::to_vec(&response)?;
                     stream.write_all(&response)?;
                 }
                 Ok(_) => {
                     let response = Message::Reply {
-                        key: "Ok".to_owned(),
+                        reply: "Ok".to_owned(),
                     };
                     let response = serde_json::to_vec(&response)?;
                     stream.write_all(&response)?;
