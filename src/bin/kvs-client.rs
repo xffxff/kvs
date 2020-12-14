@@ -3,8 +3,7 @@ extern crate failure;
 use kvs::Message;
 use kvs::Result;
 use std::io::prelude::*;
-use std::net::SocketAddr;
-use std::net::TcpStream;
+use std::net::{SocketAddr, TcpStream};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -64,9 +63,8 @@ fn main() -> Result<()> {
             let mut buffer = [0; 1024];
             let size = stream.read(&mut buffer).unwrap();
             let response: Message = serde_json::from_slice(&buffer[..size])?;
-            match response {
-                Message::Reply { ref reply } => println!("{}", reply),
-                _ => {}
+            if let Message::Reply { ref reply } = response {
+                println!("{}", reply);
             }
         }
         Command::Remove { ref key, ref addr } => {
@@ -80,12 +78,9 @@ fn main() -> Result<()> {
             let mut buffer = [0; 1024];
             let size = stream.read(&mut buffer).unwrap();
             let response: Message = serde_json::from_slice(&buffer[..size])?;
-            match response {
-                Message::Err { ref err } => {
-                    eprintln!("{}", err);
-                    return Err(format_err!("Key not found"));
-                }
-                _ => {}
+            if let Message::Err { ref err } = response {
+                eprintln!("{}", err);
+                return Err(format_err!("Key not found"));
             }
         }
     }

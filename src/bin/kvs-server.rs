@@ -4,17 +4,13 @@ extern crate clap;
 extern crate log;
 #[macro_use]
 extern crate failure;
-use kvs::KvStore;
-use kvs::KvsEngine;
-use kvs::Message;
-use kvs::Result;
-use kvs::SledKvStore;
+use kvs::{KvStore, KvsEngine, SledKvStore};
+use kvs::{Message, Result};
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
-use std::net::SocketAddr;
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener};
 use std::path::Path;
 use structopt::StructOpt;
 

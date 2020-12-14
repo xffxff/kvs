@@ -16,7 +16,6 @@ pub trait KvsEngine {
     fn remove(&mut self, key: String) -> Result<()>;
 }
 
-
 /// A simple kv store using hash map store key/value
 pub mod simple_kvs;
 

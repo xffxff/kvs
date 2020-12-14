@@ -4,34 +4,34 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 pub enum Message {
     /// Set the value of a string key to a string
-    Set { 
+    Set {
         /// insert key
-        key: String, 
+        key: String,
         /// insert value
-        value: String 
+        value: String,
     },
 
     /// Get the string value of a string key. If the key does not exist, return None
-    Get { 
+    Get {
         /// key
-        key: String 
+        key: String,
     },
 
     /// Remove a given string key
-    Remove { 
+    Remove {
         /// remove key
-        key: String 
+        key: String,
     },
 
     /// Reply to the received message
-    Reply { 
+    Reply {
         /// reply string
-        reply: String 
+        reply: String,
     },
 
     /// Error replies
-    Err { 
+    Err {
         /// error string
-        err: String 
+        err: String,
     },
 }

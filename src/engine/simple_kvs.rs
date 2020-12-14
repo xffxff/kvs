@@ -1,11 +1,9 @@
-use crate::network::Message;
 use crate::engine::KvsEngine;
 use crate::engine::Result;
+use crate::network::Message;
 use bson::Document;
 use std::collections::HashMap;
-use std::fs;
-use std::fs::File;
-use std::fs::OpenOptions;
+use std::fs::{self, File, OpenOptions};
 use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
 
