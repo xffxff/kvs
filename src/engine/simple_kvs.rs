@@ -29,10 +29,12 @@ pub trait KvsEngine {
 /// # Exmaples
 /// ```rust
 /// # use kvs::{KvStore, KvsEngine, Result};
+/// # use tempfile::TempDir;
 /// #
 /// # fn main() -> Result<()> {
-/// // create a KvStore at current path.
-/// let mut store = KvStore::open("./")?;
+/// // create a KvStore at a temp dir.
+/// let temp_dir = TempDir::new().expect("unable to create temporary working directory");
+/// let mut store = KvStore::open(temp_dir.path())?;
 ///
 /// // insert a key/value.
 /// store.set("Key1".to_owned(), "Value1".to_owned())?;
