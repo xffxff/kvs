@@ -1,28 +1,13 @@
 use crate::network::Message;
+use crate::engine::KvsEngine;
+use crate::engine::Result;
 use bson::Document;
-use failure::Error;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
-use std::result;
-
-/// Using failure::Error as error type
-pub type Result<T> = result::Result<T, Error>;
-
-/// Define the storage interface
-pub trait KvsEngine {
-    /// Set the value of a string key to a string
-    fn set(&mut self, key: String, value: String) -> Result<()>;
-
-    /// Get the string value of a string key. If the key does not exist, return None
-    fn get(&mut self, key: String) -> Result<Option<String>>;
-
-    /// Remove a given string key
-    fn remove(&mut self, key: String) -> Result<()>;
-}
 
 /// A simple kv store using hash map store key/value
 ///

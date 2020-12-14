@@ -1,5 +1,5 @@
-use crate::KvsEngine;
-use crate::Result;
+use crate::engine::KvsEngine;
+use crate::engine::Result;
 use std::path::PathBuf;
 
 /// A kv store using the `sled` library
