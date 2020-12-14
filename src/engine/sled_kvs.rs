@@ -2,19 +2,51 @@ use crate::KvsEngine;
 use crate::Result;
 use std::path::PathBuf;
 
-pub struct SledKVStore {
-    pub db: sled::Db,
+/// A kv store using the `sled` library
+///
+/// # Exmaples
+/// ```rust
+/// # use kvs::{SledKvStore, KvsEngine, Result};
+/// #
+/// # fn main() -> Result<()> {
+/// // create a KvStore at current path.
+/// let mut store = SledKvStore::open("./")?;
+///
+/// // insert a key/value.
+/// store.set("Key1".to_owned(), "Value1".to_owned())?;
+///
+/// // get the value match the key.
+/// match store.get("Key1".to_owned())? {
+///     Some(value) => println!("{}", value),
+///     None => println!("Key not found")
+/// }
+///
+/// // remove a given string key.
+/// store.remove("Key1".to_owned())?;
+///
+/// // Now "Key1" should not exist.
+/// assert_eq!(store.get("Key1".to_owned())?, None);
+///
+/// Ok(())   
+/// # }
+/// ```
+pub struct SledKvStore {
+    db: sled::Db,
 }
 
-impl SledKVStore {
-    pub fn open(path: impl Into<PathBuf>) -> Result<SledKVStore> {
+impl SledKvStore {
+    /// Create a SledKvStore at `path`
+    /// If no previous persisted log exists, create a new log;
+    /// if there is a previous persisted log then create a
+    /// KvStore based on the log.
+    pub fn open(path: impl Into<PathBuf>) -> Result<SledKvStore> {
         let db = sled::open(path.into())?;
-        let sled_kvs = SledKVStore { db };
+        let sled_kvs = SledKvStore { db };
         Ok(sled_kvs)
     }
 }
 
-impl KvsEngine for SledKVStore {
+impl KvsEngine for SledKvStore {
     fn set(&mut self, key: String, value: String) -> Result<()> {
         self.db.insert(key.as_bytes(), value.as_bytes())?;
         self.db.flush()?;

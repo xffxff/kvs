@@ -1,7 +1,7 @@
 extern crate rand;
 extern crate rand_chacha;
 use criterion::{criterion_group, criterion_main, Criterion};
-use kvs::{KvStore, KvsEngine, SledKVStore};
+use kvs::{KvStore, KvsEngine, SledKvStore};
 use rand::distributions::Alphanumeric;
 use rand::{Rng, SeedableRng};
 use tempfile::TempDir;
@@ -32,7 +32,7 @@ pub fn sled_write(c: &mut Criterion) {
     c.bench_function("sled write", |b| {
         b.iter(|| {
             let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-            let mut store = SledKVStore::open(temp_dir.path()).unwrap();
+            let mut store = SledKvStore::open(temp_dir.path()).unwrap();
 
             let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(10);
             for _ in 0..100 {
@@ -71,7 +71,7 @@ pub fn kvs_read(c: &mut Criterion) {
 
 pub fn sled_read(c: &mut Criterion) {
     let temp_dir = TempDir::new().expect("unabble to create temporary working directory");
-    let mut store = SledKVStore::open(temp_dir.path()).unwrap();
+    let mut store = SledKvStore::open(temp_dir.path()).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(10);
     let mut keys: Vec<String> = Vec::new();

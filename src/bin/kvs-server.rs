@@ -8,7 +8,7 @@ use kvs::KvStore;
 use kvs::KvsEngine;
 use kvs::Message;
 use kvs::Result;
-use kvs::SledKVStore;
+use kvs::SledKvStore;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
@@ -138,7 +138,7 @@ fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
             Ok(Box::new(kv_store))
         }
         Engine::sled => {
-            let kv_store = SledKVStore::open("./")?;
+            let kv_store = SledKvStore::open("./")?;
             serde_json::to_writer(f, &engine)?;
             Ok(Box::new(kv_store))
         }
