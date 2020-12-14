@@ -9,6 +9,7 @@ use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
 use std::result;
 
+/// Using failure::Error as error type
 pub type Result<T> = result::Result<T, Error>;
 
 /// Define the storage interface
@@ -23,7 +24,34 @@ pub trait KvsEngine {
     fn remove(&mut self, key: String) -> Result<()>;
 }
 
-/// Using hash map store key/value
+/// A simple kv store using hash map store key/value
+///
+/// # Exmaples
+/// ```rust
+/// # use kvs::{KvStore, KvsEngine, Result};
+/// #
+/// # fn main() -> Result<()> {
+/// // create a KvStore at current path.
+/// let mut store = KvStore::open("./")?;
+///
+/// // insert a key/value.
+/// store.set("Key1".to_owned(), "Value1".to_owned())?;
+///
+/// // get the value match the key.
+/// match store.get("Key1".to_owned())? {
+///     Some(value) => println!("{}", value),
+///     None => println!("Key not found")
+/// }
+///
+/// // remove a given string key.
+/// store.remove("Key1".to_owned())?;
+///
+/// // Now "Key1" should not exist.
+/// assert_eq!(store.get("Key1".to_owned())?, None);
+///
+/// Ok(())   
+/// # }
+/// ```
 pub struct KvStore {
     file: File,
     path: PathBuf,
@@ -32,6 +60,10 @@ pub struct KvStore {
 }
 
 impl KvStore {
+    /// Create a KvStore at `path`
+    /// If no previous persisted log exists, create a new log;
+    /// if there is a previous persisted log then create a
+    /// KvStore based on the log.
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
         let path = path.into();
         let mut f = OpenOptions::new()
