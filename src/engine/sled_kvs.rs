@@ -70,11 +70,8 @@ impl KvsEngine for SledKvStore {
     fn remove(&mut self, key: String) -> Result<()> {
         let result = self.db.remove(key.as_bytes())?;
         self.db.flush()?;
-        match result {
-            Some(_) => {}
-            None => {
-                return Err(KvsError::KeyNotFound);
-            }
+        if result.is_none() {
+            return Err(KvsError::KeyNotFound);
         }
         Ok(())
     }
