@@ -72,7 +72,7 @@ impl KvsEngine for SledKvStore {
         match result {
             Some(_) => {}
             None => {
-                return Err(format_err!("Key not found"));
+                return Err(From::from("Key not found"));
             }
         }
         Ok(())

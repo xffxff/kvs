@@ -80,7 +80,7 @@ fn main() -> Result<()> {
             let response: Message = serde_json::from_slice(&buffer[..size])?;
             if let Message::Err { ref err } = response {
                 eprintln!("{}", err);
-                return Err(format_err!("Key not found"));
+                return Err(From::from("Key not found"));
             }
         }
     }

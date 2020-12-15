@@ -81,7 +81,7 @@ impl KvStore {
                     index.remove(key);
                 }
                 _ => {
-                    return Err(format_err!("Not valid log"));
+                    return Err(From::from("Not valid log"));
                 }
             }
             last_log_pointer = f.seek(SeekFrom::Current(0))?;
@@ -136,7 +136,7 @@ impl KvsEngine for KvStore {
                 let msg: Message = bson::from_document(deserialized)?;
                 match msg {
                     Message::Set { key: _, ref value } => Ok(Some(value.to_owned())),
-                    _ => Err(format_err!("Not valid log")),
+                    _ => Err(From::from("Not valid log")),
                 }
             }
             None => Ok(None),
@@ -152,7 +152,7 @@ impl KvsEngine for KvStore {
                 self.index.remove(&key);
             }
             None => {
-                return Err(format_err!("Key not found"));
+                return Err(From::from("Key not found"));
             }
         }
         Ok(())

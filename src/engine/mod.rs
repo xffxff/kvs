@@ -1,8 +1,9 @@
-use failure::Error;
+// use failure::Error;
+use std::error::Error;
 use std::result;
 
 /// Using failure::Error as error type
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Box<dyn Error>>;
 
 /// Define the storage interface
 pub trait KvsEngine {

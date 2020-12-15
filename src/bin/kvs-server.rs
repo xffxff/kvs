@@ -108,7 +108,7 @@ fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
         Some(v) => match persisted_engine {
             Some(p) => {
                 if v != p {
-                    return Err(format_err!("mismatch engine"));
+                    return Err(From::from("mismatch engine"));
                 }
                 engine = v;
             }
