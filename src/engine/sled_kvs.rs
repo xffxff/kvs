@@ -1,5 +1,6 @@
 use crate::engine::KvsEngine;
 use crate::engine::Result;
+use crate::error::KvsError;
 use std::path::PathBuf;
 
 /// A kv store using the `sled` library
@@ -69,11 +70,8 @@ impl KvsEngine for SledKvStore {
     fn remove(&mut self, key: String) -> Result<()> {
         let result = self.db.remove(key.as_bytes())?;
         self.db.flush()?;
-        match result {
-            Some(_) => {}
-            None => {
-                return Err(format_err!("Key not found"));
-            }
+        if result.is_none() {
+            return Err(KvsError::KeyNotFound);
         }
         Ok(())
     }

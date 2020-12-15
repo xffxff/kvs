@@ -6,9 +6,11 @@
 #[macro_use]
 extern crate failure;
 mod engine;
+mod error;
 mod network;
 
 pub use crate::engine::simple_kvs::*;
 pub use crate::engine::sled_kvs::*;
 pub use crate::engine::*;
+pub use crate::error::KvsError;
 pub use crate::network::Message;

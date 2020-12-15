@@ -1,6 +1,6 @@
-use crate::engine::KvsEngine;
 use crate::engine::Result;
 use crate::network::Message;
+use crate::{engine::KvsEngine, error::KvsError};
 use bson::Document;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -81,7 +81,7 @@ impl KvStore {
                     index.remove(key);
                 }
                 _ => {
-                    return Err(format_err!("Not valid log"));
+                    return Err(KvsError::NotValidLog);
                 }
             }
             last_log_pointer = f.seek(SeekFrom::Current(0))?;
@@ -112,7 +112,7 @@ impl KvsEngine for KvStore {
             let mut index: HashMap<String, u64> = HashMap::new();
             self.log_count = 0;
             for (key, _) in old_index {
-                if let Some(value) = self.get(key.clone()).unwrap() {
+                if let Some(value) = self.get(key.clone())? {
                     let log_pointer = f.seek(SeekFrom::Current(0))?;
                     index.insert(key.clone(), log_pointer);
                     let set = Message::Set { key, value };
@@ -136,7 +136,7 @@ impl KvsEngine for KvStore {
                 let msg: Message = bson::from_document(deserialized)?;
                 match msg {
                     Message::Set { key: _, ref value } => Ok(Some(value.to_owned())),
-                    _ => Err(format_err!("Not valid log")),
+                    _ => Err(KvsError::NotValidLog),
                 }
             }
             None => Ok(None),
@@ -152,7 +152,7 @@ impl KvsEngine for KvStore {
                 self.index.remove(&key);
             }
             None => {
-                return Err(format_err!("Key not found"));
+                return Err(KvsError::NotValidLog);
             }
         }
         Ok(())

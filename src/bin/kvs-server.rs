@@ -5,7 +5,7 @@ extern crate log;
 #[macro_use]
 extern crate failure;
 use kvs::{KvStore, KvsEngine, SledKvStore};
-use kvs::{Message, Result};
+use kvs::{KvsError, Message, Result};
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
@@ -45,13 +45,13 @@ fn main() -> Result<()> {
     let listener = TcpListener::bind(opt.addr)?;
 
     for stream in listener.incoming() {
-        let mut stream = stream.unwrap();
-        info!("connection from {:?}", stream.peer_addr().unwrap());
+        let mut stream = stream?;
+        info!("connection from {:?}", stream.peer_addr()?);
 
         let mut buffer = [0; 1024];
 
-        let size = stream.read(&mut buffer).unwrap();
-        let request: Message = serde_json::from_slice(&buffer[..size]).unwrap();
+        let size = stream.read(&mut buffer)?;
+        let request: Message = serde_json::from_slice(&buffer[..size])?;
         match request {
             Message::Set { ref key, ref value } => {
                 kv_store.set(key.to_owned(), value.to_owned())?;
@@ -108,7 +108,7 @@ fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
         Some(v) => match persisted_engine {
             Some(p) => {
                 if v != p {
-                    return Err(format_err!("mismatch engine"));
+                    return Err(KvsError::MismatchEngine);
                 }
                 engine = v;
             }
