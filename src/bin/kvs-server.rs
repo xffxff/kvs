@@ -5,7 +5,7 @@ extern crate log;
 #[macro_use]
 extern crate failure;
 use kvs::{KvStore, KvsEngine, SledKvStore};
-use kvs::{Message, Result};
+use kvs::{KvsError, Message, Result};
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
@@ -108,7 +108,7 @@ fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
         Some(v) => match persisted_engine {
             Some(p) => {
                 if v != p {
-                    return Err(From::from("mismatch engine"));
+                    return Err(KvsError::MismatchEngine);
                 }
                 engine = v;
             }

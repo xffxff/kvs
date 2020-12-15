@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate failure;
-use kvs::Message;
 use kvs::Result;
+use kvs::{KvsError, Message};
 use std::io::prelude::*;
 use std::net::{SocketAddr, TcpStream};
 use structopt::StructOpt;
@@ -80,7 +80,7 @@ fn main() -> Result<()> {
             let response: Message = serde_json::from_slice(&buffer[..size])?;
             if let Message::Err { ref err } = response {
                 eprintln!("{}", err);
-                return Err(From::from("Key not found"));
+                return Err(KvsError::KeyNotFound);
             }
         }
     }
