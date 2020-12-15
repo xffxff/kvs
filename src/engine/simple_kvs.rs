@@ -112,7 +112,7 @@ impl KvsEngine for KvStore {
             let mut index: HashMap<String, u64> = HashMap::new();
             self.log_count = 0;
             for (key, _) in old_index {
-                if let Some(value) = self.get(key.clone()).unwrap() {
+                if let Some(value) = self.get(key.clone())? {
                     let log_pointer = f.seek(SeekFrom::Current(0))?;
                     index.insert(key.clone(), log_pointer);
                     let set = Message::Set { key, value };

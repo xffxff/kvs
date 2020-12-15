@@ -45,13 +45,13 @@ fn main() -> Result<()> {
     let listener = TcpListener::bind(opt.addr)?;
 
     for stream in listener.incoming() {
-        let mut stream = stream.unwrap();
-        info!("connection from {:?}", stream.peer_addr().unwrap());
+        let mut stream = stream?;
+        info!("connection from {:?}", stream.peer_addr()?);
 
         let mut buffer = [0; 1024];
 
-        let size = stream.read(&mut buffer).unwrap();
-        let request: Message = serde_json::from_slice(&buffer[..size]).unwrap();
+        let size = stream.read(&mut buffer)?;
+        let request: Message = serde_json::from_slice(&buffer[..size])?;
         match request {
             Message::Set { ref key, ref value } => {
                 kv_store.set(key.to_owned(), value.to_owned())?;

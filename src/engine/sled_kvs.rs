@@ -60,7 +60,7 @@ impl KvsEngine for SledKvStore {
         let result = self.db.get(key.as_bytes())?;
         match result {
             Some(value) => {
-                let value = String::from_utf8(value.to_vec()).unwrap();
+                let value = String::from_utf8(value.to_vec())?;
                 Ok(Some(value))
             }
             None => Ok(None),
