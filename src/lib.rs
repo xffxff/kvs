@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 //! # kvs
 //!
 //! `kvs` is a simple in-memory key/value store that maps strings
@@ -8,6 +8,7 @@ extern crate failure;
 mod engine;
 mod error;
 mod network;
+pub mod thread_pool;
 
 pub use crate::engine::simple_kvs::*;
 pub use crate::engine::sled_kvs::*;

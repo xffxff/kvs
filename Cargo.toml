@@ -24,6 +24,7 @@ simple-logging = "2.0.2"
 criterion = "0.3"
 rand = "0.7"
 rand_chacha = "0.2"
+crossbeam-utils = "0.6.5"
 
 [[bench]]
 name = "benches"
