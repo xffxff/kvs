@@ -40,9 +40,20 @@ fn main() -> Result<()> {
     info!("IP:PORT {:?}", opt.addr);
     info!("Engine: {:?}", opt.engine);
 
-    let mut kv_store = get_engine(opt.engine)?;
+    let engine = get_engine(opt.engine)?;
+    match engine {
+        Engine::kvs => {
+            run(KvStore::open("./").unwrap(), opt.addr).unwrap();
+        }
+        Engine::sled => {
+            run(SledKvStore::open("./").unwrap(), opt.addr).unwrap();
+        }
+    }
+    Ok(())
+}
 
-    let listener = TcpListener::bind(opt.addr)?;
+fn run(kv_store: impl KvsEngine, addr: SocketAddr) -> Result<()> {
+    let listener = TcpListener::bind(addr)?;
 
     for stream in listener.incoming() {
         let mut stream = stream?;
@@ -95,7 +106,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
+fn get_engine(possible_engine: Option<Engine>) -> Result<Engine> {
     let mut persisted_engine: Option<Engine> = None;
     if Path::new("config").exists() {
         let f = OpenOptions::new().read(true).open("config")?;
@@ -129,14 +140,16 @@ fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
 
     match engine {
         Engine::kvs => {
-            let kv_store = KvStore::open("./")?;
+            // let kv_store = KvStore::open("./")?;
             serde_json::to_writer(f, &engine)?;
-            Ok(Box::new(kv_store))
+            Ok(Engine::kvs)
+            // Ok(Box::new(kv_store))
         }
         Engine::sled => {
-            let kv_store = SledKvStore::open("./")?;
+            // let kv_store = SledKvStore::open("./")?;
             serde_json::to_writer(f, &engine)?;
-            Ok(Box::new(kv_store))
+            Ok(Engine::sled)
+            // Ok(Box::new(kv_store))
         }
     }
 }
