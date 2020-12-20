@@ -57,7 +57,8 @@ fn main() -> Result<()> {
 fn run(kv_store: impl KvsEngine + Sync, addr: SocketAddr) -> Result<()> {
     let listener = TcpListener::bind(addr)?;
 
-    let pool = SharedQueueThreadPool::new(3)?;
+    let ncpu = num_cpus::get();
+    let pool = SharedQueueThreadPool::new(ncpu as u32)?;
 
     let kv_store = Arc::new(kv_store);
 
