@@ -50,11 +50,6 @@ struct Reader {
     path: PathBuf,
 }
 
-// impl Clone for KvStore {
-//     fn clone(&self) -> Self {
-//     }
-// }
-
 impl KvStore {
     /// Create a KvStore at `path`
     /// If no previous persisted log exists, create a new log;
@@ -105,9 +100,10 @@ impl KvStore {
 
 impl KvsEngine for KvStore {
     fn set(&self, key: String, value: String) -> Result<()> {
-        let mut reader = self.reader.lock().unwrap();
-        let mut index = self.index.lock().unwrap();
-        let mut log_count = self.log_count.lock().unwrap();
+        let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
+        let mut index = self.index.lock().map_err(|e| e.to_string())?;
+        let mut log_count = self.log_count.lock().map_err(|e| e.to_string())?;
+
         let log_pointer = reader.file.seek(SeekFrom::Current(0))?;
         index.insert(key.clone(), log_pointer);
         let set = Message::Set { key, value };
@@ -144,8 +140,8 @@ impl KvsEngine for KvStore {
     }
 
     fn get(&self, key: String) -> Result<Option<String>> {
-        let index = self.index.lock().unwrap();
-        let mut reader = self.reader.lock().unwrap();
+        let index = self.index.lock().map_err(|e| e.to_string())?;
+        let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
         match index.get(&key) {
             Some(log_pointer) => {
                 reader.file.seek(SeekFrom::Start(log_pointer.to_owned()))?;
@@ -161,8 +157,8 @@ impl KvsEngine for KvStore {
     }
 
     fn remove(&self, key: String) -> Result<()> {
-        let mut index = self.index.lock().unwrap();
-        let mut reader = self.reader.lock().unwrap();
+        let mut index = self.index.lock().map_err(|e| e.to_string())?;
+        let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
         match index.get(&key) {
             Some(_) => {
                 let rm = Message::Remove { key: key.clone() };
