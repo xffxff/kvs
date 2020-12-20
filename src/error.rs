@@ -1,4 +1,3 @@
-use bson;
 use std::fmt;
 use std::io;
 use std::string::FromUtf8Error;

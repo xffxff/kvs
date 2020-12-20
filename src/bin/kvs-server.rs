@@ -4,7 +4,7 @@ extern crate clap;
 extern crate log;
 #[macro_use]
 extern crate failure;
-use kvs::thread_pool::{NaiveThreadPool, ThreadPool};
+use kvs::thread_pool::{SharedQueueThreadPool, ThreadPool};
 use kvs::{KvStore, KvsEngine, SledKvStore};
 use kvs::{KvsError, Message, Result};
 use log::LevelFilter;
@@ -57,7 +57,7 @@ fn main() -> Result<()> {
 fn run(kv_store: impl KvsEngine + Sync, addr: SocketAddr) -> Result<()> {
     let listener = TcpListener::bind(addr)?;
 
-    let pool = NaiveThreadPool::new(3)?;
+    let pool = SharedQueueThreadPool::new(3)?;
 
     let kv_store = Arc::new(kv_store);
 
