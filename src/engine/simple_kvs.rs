@@ -99,13 +99,13 @@ impl KvStore {
 
     fn compact(&self) -> Result<()> {
         let need_compaction = {
-            let index = self.index.lock().unwrap();
-            let log_count = self.log_count.lock().unwrap();
+            let index = self.index.lock().map_err(|e| e.to_string())?;
+            let log_count = self.log_count.lock().map_err(|e| e.to_string())?;
             *log_count > 2 * index.len() as u32
         };
         if need_compaction {
             let mut f = {
-                let reader = self.reader.lock().unwrap();
+                let reader = self.reader.lock().map_err(|e| e.to_string())?;
                 OpenOptions::new()
                     .write(true)
                     .read(true)
@@ -114,7 +114,7 @@ impl KvStore {
             };
 
             let old_index = {
-                let index = self.index.lock().unwrap();
+                let index = self.index.lock().map_err(|e| e.to_string())?;
                 index.clone()
             };
 
@@ -132,11 +132,11 @@ impl KvStore {
             }
 
             {
-                let mut reader = self.reader.lock().unwrap();
+                let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
                 reader.file = f;
-                let mut index = self.index.lock().unwrap();
+                let mut index = self.index.lock().map_err(|e| e.to_string())?;
                 *index = new_index;
-                let mut log_count = self.log_count.lock().unwrap();
+                let mut log_count = self.log_count.lock().map_err(|e| e.to_string())?;
                 *log_count = new_log_count;
                 fs::rename(reader.path.join("tmp.bson"), reader.path.join("log.bson"))?;
             }
@@ -162,16 +162,16 @@ impl KvsEngine for KvStore {
             let mut log_count = self.log_count.lock().map_err(|e| e.to_string())?;
             *log_count += 1;
         }
-        self.compact().unwrap();
+        self.compact().map_err(|e| e.to_string())?;
 
         Ok(())
     }
 
     fn get(&self, key: String) -> Result<Option<String>> {
         let index = self.index.lock().map_err(|e| e.to_string())?;
-        let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
         match index.get(&key) {
             Some(log_pointer) => {
+                let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
                 reader.file.seek(SeekFrom::Start(log_pointer.to_owned()))?;
                 let deserialized = Document::from_reader(&mut reader.file)?;
                 let msg: Message = bson::from_document(deserialized)?;
@@ -186,11 +186,11 @@ impl KvsEngine for KvStore {
 
     fn remove(&self, key: String) -> Result<()> {
         let mut index = self.index.lock().map_err(|e| e.to_string())?;
-        let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
         match index.get(&key) {
             Some(_) => {
                 let rm = Message::Remove { key: key.clone() };
                 let serialized = bson::to_document(&rm)?;
+                let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
                 serialized.to_writer(&mut reader.file)?;
                 index.remove(&key);
             }
