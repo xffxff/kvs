@@ -75,6 +75,7 @@ fn run(kv_store: impl KvsEngine + Sync, addr: SocketAddr) -> Result<()> {
 fn process_and_respond(kv_store: Arc<impl KvsEngine + Sync>, mut stream: TcpStream) -> Result<()> {
     info!("connection from {:?}", stream.peer_addr()?);
 
+    //TODO: fixed-size buffer is a bug
     let mut buffer = [0; 1024];
 
     let size = stream.read(&mut buffer)?;
