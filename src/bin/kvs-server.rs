@@ -63,17 +63,19 @@ fn run(kv_store: impl KvsEngine + Sync, addr: SocketAddr) -> Result<()> {
     let kv_store = Arc::new(kv_store);
 
     for stream in listener.incoming() {
-        let stream = stream?;
+        let mut stream = stream?;
         let kv_store = Arc::clone(&kv_store);
         pool.spawn(move || {
-            process_and_respond(kv_store, stream).unwrap();
+            let request = read_cmd(&mut stream).unwrap();
+            let response = process_cmd(kv_store, request).unwrap();
+            respond(&mut stream, response).unwrap();
         })
     }
 
     Ok(())
 }
 
-fn process_and_respond(kv_store: Arc<impl KvsEngine + Sync>, mut stream: TcpStream) -> Result<()> {
+fn read_cmd(stream: &mut TcpStream) -> Result<Message> {
     info!("connection from {:?}", stream.peer_addr()?);
 
     //TODO: fixed-size buffer is a bug
@@ -81,43 +83,41 @@ fn process_and_respond(kv_store: Arc<impl KvsEngine + Sync>, mut stream: TcpStre
 
     let size = stream.read(&mut buffer)?;
     let request: Message = serde_json::from_slice(&buffer[..size])?;
-    match request {
+    Ok(request)
+}
+
+fn process_cmd(kv_store: Arc<impl KvsEngine + Sync>, msg: Message) -> Result<Message> {
+    let response = match msg {
         Message::Set { ref key, ref value } => {
             kv_store.set(key.to_owned(), value.to_owned())?;
+            Message::Reply {
+                reply: "Ok".to_owned(),
+            }
         }
         Message::Get { ref key } => match kv_store.get(key.to_owned())? {
-            Some(value) => {
-                let response = Message::Reply { reply: value };
-                let response = serde_json::to_vec(&response)?;
-                stream.write_all(&response)?;
-            }
-            None => {
-                let response = Message::Reply {
-                    reply: "Key not found".to_owned(),
-                };
-                let response = serde_json::to_vec(&response)?;
-                stream.write_all(&response)?;
-            }
+            Some(value) => Message::Reply { reply: value },
+            None => Message::Reply {
+                reply: "Key not found".to_owned(),
+            },
         },
         Message::Remove { ref key } => match kv_store.remove(key.to_owned()) {
-            Err(_) => {
-                let response = Message::Err {
-                    err: "Key not found".to_owned(),
-                };
-                let response = serde_json::to_vec(&response)?;
-                stream.write_all(&response)?;
-            }
-            Ok(_) => {
-                let response = Message::Reply {
-                    reply: "Ok".to_owned(),
-                };
-                let response = serde_json::to_vec(&response)?;
-                stream.write_all(&response)?;
-            }
+            Err(_) => Message::Err {
+                err: "Key not found".to_owned(),
+            },
+            Ok(_) => Message::Reply {
+                reply: "Ok".to_owned(),
+            },
         },
-        _ => {}
-    }
+        _ => Message::Err {
+            err: "Invalid command".to_owned(),
+        },
+    };
+    Ok(response)
+}
 
+fn respond(stream: &mut TcpStream, resp: Message) -> Result<()> {
+    let response = serde_json::to_vec(&resp)?;
+    stream.write_all(&response)?;
     Ok(())
 }
 
