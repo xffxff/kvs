@@ -1,5 +1,4 @@
 use bson;
-use sled;
 use std::fmt;
 use std::io;
 use std::string::FromUtf8Error;
