@@ -4,14 +4,16 @@ extern crate clap;
 extern crate log;
 #[macro_use]
 extern crate failure;
+use kvs::thread_pool::{NaiveThreadPool, ThreadPool};
 use kvs::{KvStore, KvsEngine, SledKvStore};
 use kvs::{KvsError, Message, Result};
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
-use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::net::{SocketAddr, TcpListener};
 use std::path::Path;
+use std::sync::Arc;
+use std::{fs::OpenOptions, net::TcpStream};
 use structopt::StructOpt;
 
 arg_enum! {
@@ -52,55 +54,66 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run(kv_store: impl KvsEngine, addr: SocketAddr) -> Result<()> {
+fn run(kv_store: impl KvsEngine + Sync, addr: SocketAddr) -> Result<()> {
     let listener = TcpListener::bind(addr)?;
 
+    let pool = NaiveThreadPool::new(3)?;
+
+    let kv_store = Arc::new(kv_store);
+
     for stream in listener.incoming() {
-        let mut stream = stream?;
-        info!("connection from {:?}", stream.peer_addr()?);
+        let stream = stream?;
+        let kv_store = Arc::clone(&kv_store);
+        pool.spawn(move || {
+            process_and_respond(kv_store, stream).unwrap();
+        })
+    }
 
-        let mut buffer = [0; 1024];
+    Ok(())
+}
 
-        let size = stream.read(&mut buffer)?;
-        let request: Message = serde_json::from_slice(&buffer[..size])?;
-        match request {
-            Message::Set { ref key, ref value } => {
-                kv_store.set(key.to_owned(), value.to_owned())?;
-            }
-            Message::Get { ref key } => match kv_store.get(key.to_owned())? {
-                Some(value) => {
-                    let response = Message::Reply {
-                        reply: value.to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-                None => {
-                    let response = Message::Reply {
-                        reply: "Key not found".to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-            },
-            Message::Remove { ref key } => match kv_store.remove(key.to_owned()) {
-                Err(_) => {
-                    let response = Message::Err {
-                        err: "Key not found".to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-                Ok(_) => {
-                    let response = Message::Reply {
-                        reply: "Ok".to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-            },
-            _ => {}
+fn process_and_respond(kv_store: Arc<impl KvsEngine + Sync>, mut stream: TcpStream) -> Result<()> {
+    info!("connection from {:?}", stream.peer_addr()?);
+
+    let mut buffer = [0; 1024];
+
+    let size = stream.read(&mut buffer)?;
+    let request: Message = serde_json::from_slice(&buffer[..size])?;
+    match request {
+        Message::Set { ref key, ref value } => {
+            kv_store.set(key.to_owned(), value.to_owned())?;
         }
+        Message::Get { ref key } => match kv_store.get(key.to_owned())? {
+            Some(value) => {
+                let response = Message::Reply { reply: value };
+                let response = serde_json::to_vec(&response)?;
+                stream.write_all(&response)?;
+            }
+            None => {
+                let response = Message::Reply {
+                    reply: "Key not found".to_owned(),
+                };
+                let response = serde_json::to_vec(&response)?;
+                stream.write_all(&response)?;
+            }
+        },
+        Message::Remove { ref key } => match kv_store.remove(key.to_owned()) {
+            Err(_) => {
+                let response = Message::Err {
+                    err: "Key not found".to_owned(),
+                };
+                let response = serde_json::to_vec(&response)?;
+                stream.write_all(&response)?;
+            }
+            Ok(_) => {
+                let response = Message::Reply {
+                    reply: "Ok".to_owned(),
+                };
+                let response = serde_json::to_vec(&response)?;
+                stream.write_all(&response)?;
+            }
+        },
+        _ => {}
     }
 
     Ok(())
