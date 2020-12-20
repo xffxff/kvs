@@ -96,46 +96,74 @@ impl KvStore {
         }
         Ok((index, log_count))
     }
+
+    fn compact(&self) -> Result<()> {
+        let need_compaction = {
+            let index = self.index.lock().unwrap();
+            let log_count = self.log_count.lock().unwrap();
+            *log_count > 2 * index.len() as u32
+        };
+        if need_compaction {
+            let mut f = {
+                let reader = self.reader.lock().unwrap();
+                OpenOptions::new()
+                    .write(true)
+                    .read(true)
+                    .create(true)
+                    .open(reader.path.join("tmp.bson"))?
+            };
+
+            let old_index = {
+                let index = self.index.lock().unwrap();
+                index.clone()
+            };
+
+            let mut new_index: HashMap<String, u64> = HashMap::new();
+            let mut new_log_count = 0;
+            for (key, _) in old_index {
+                if let Some(value) = self.get(key.clone())? {
+                    let log_pointer = f.seek(SeekFrom::Current(0))?;
+                    new_index.insert(key.clone(), log_pointer);
+                    let set = Message::Set { key, value };
+                    let serialized = bson::to_document(&set)?;
+                    serialized.to_writer(&mut f)?;
+                    new_log_count += 1;
+                }
+            }
+
+            {
+                let mut reader = self.reader.lock().unwrap();
+                reader.file = f;
+                let mut index = self.index.lock().unwrap();
+                *index = new_index;
+                let mut log_count = self.log_count.lock().unwrap();
+                *log_count = new_log_count;
+                fs::rename(reader.path.join("tmp.bson"), reader.path.join("log.bson"))?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl KvsEngine for KvStore {
     fn set(&self, key: String, value: String) -> Result<()> {
-        let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
-        let mut index = self.index.lock().map_err(|e| e.to_string())?;
-        let mut log_count = self.log_count.lock().map_err(|e| e.to_string())?;
+        {
+            let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
+            let log_pointer = reader.file.seek(SeekFrom::Current(0))?;
 
-        let log_pointer = reader.file.seek(SeekFrom::Current(0))?;
-        index.insert(key.clone(), log_pointer);
-        let set = Message::Set { key, value };
-        let serialized = bson::to_document(&set)?;
-        serialized.to_writer(&mut reader.file)?;
+            let mut index = self.index.lock().map_err(|e| e.to_string())?;
+            index.insert(key.clone(), log_pointer);
 
-        *log_count += 1;
+            let set = Message::Set { key, value };
+            let serialized = bson::to_document(&set)?;
+            serialized.to_writer(&mut reader.file)?;
 
-        let index_len = index.len() as u32;
-        if *log_count > 2 * index_len {
-            let mut f = OpenOptions::new()
-                .write(true)
-                .read(true)
-                .create(true)
-                .open(reader.path.join("tmp.bson"))?;
-
-            let old_index = index.clone();
-            index.clear();
-            *log_count = 0;
-            for (key, _) in old_index {
-                if let Some(value) = self.get(key.clone())? {
-                    let log_pointer = f.seek(SeekFrom::Current(0))?;
-                    index.insert(key.clone(), log_pointer);
-                    let set = Message::Set { key, value };
-                    let serialized = bson::to_document(&set)?;
-                    serialized.to_writer(&mut f)?;
-                    *log_count += 1;
-                }
-            }
-            reader.file = f;
-            fs::rename(reader.path.join("tmp.bson"), reader.path.join("log.bson"))?;
+            let mut log_count = self.log_count.lock().map_err(|e| e.to_string())?;
+            *log_count += 1;
         }
+        self.compact().unwrap();
+
         Ok(())
     }
 
