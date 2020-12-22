@@ -4,13 +4,12 @@ use crate::{KvsEngine, Message};
 use log::info;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::Arc;
 
-pub struct KvsServer<E: KvsEngine + Sync> {
+pub struct KvsServer<E: KvsEngine> {
     store: E,
 }
 
-impl<E: KvsEngine + Sync> KvsServer<E> {
+impl<E: KvsEngine> KvsServer<E> {
     pub fn new(engine: E) -> Self {
         KvsServer { store: engine }
     }
@@ -22,11 +21,9 @@ impl<E: KvsEngine + Sync> KvsServer<E> {
         // let pool = SharedQueueThreadPool::new(ncpu as u32)?;
         let pool = RayonThreadPool::new(ncpu as u32)?;
 
-        let kv_store = Arc::new(self.store);
-
         for stream in listener.incoming() {
             let mut stream = stream?;
-            let kv_store = Arc::clone(&kv_store);
+            let kv_store = self.store.clone();
             pool.spawn(move || {
                 let request = read_cmd(&mut stream).unwrap();
                 let response = process_cmd(kv_store, request).unwrap();
@@ -49,7 +46,7 @@ fn read_cmd(stream: &mut TcpStream) -> Result<Message> {
     Ok(request)
 }
 
-fn process_cmd(kv_store: Arc<impl KvsEngine + Sync>, msg: Message) -> Result<Message> {
+fn process_cmd(kv_store: impl KvsEngine, msg: Message) -> Result<Message> {
     let response = match msg {
         Message::Set { ref key, ref value } => {
             kv_store.set(key.to_owned(), value.to_owned())?;
