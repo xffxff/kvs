@@ -4,16 +4,14 @@ extern crate clap;
 extern crate log;
 #[macro_use]
 extern crate failure;
-use kvs::thread_pool::{RayonThreadPool, SharedQueueThreadPool, ThreadPool};
-use kvs::{KvStore, KvsEngine, SledKvStore};
-use kvs::{KvsError, Message, Result};
+use kvs::KvsServer;
+use kvs::{KvStore, SledKvStore};
+use kvs::{KvsError, Result};
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
-use std::io::prelude::*;
-use std::net::{SocketAddr, TcpListener};
+use std::fs::OpenOptions;
+use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::Arc;
-use std::{fs::OpenOptions, net::TcpStream};
 use structopt::StructOpt;
 
 arg_enum! {
@@ -45,80 +43,16 @@ fn main() -> Result<()> {
     let engine = get_engine(opt.engine)?;
     match engine {
         Engine::kvs => {
-            run(KvStore::open("./").unwrap(), opt.addr).unwrap();
+            let store = KvStore::open("./").unwrap();
+            let server = KvsServer::new(store);
+            server.run(opt.addr).unwrap();
         }
         Engine::sled => {
-            run(SledKvStore::open("./").unwrap(), opt.addr).unwrap();
+            let store = SledKvStore::open("./").unwrap();
+            let server = KvsServer::new(store);
+            server.run(opt.addr).unwrap();
         }
     }
-    Ok(())
-}
-
-fn run(kv_store: impl KvsEngine + Sync, addr: SocketAddr) -> Result<()> {
-    let listener = TcpListener::bind(addr)?;
-
-    let ncpu = num_cpus::get();
-    // let pool = SharedQueueThreadPool::new(ncpu as u32)?;
-    let pool = RayonThreadPool::new(ncpu as u32)?;
-
-    let kv_store = Arc::new(kv_store);
-
-    for stream in listener.incoming() {
-        let mut stream = stream?;
-        let kv_store = Arc::clone(&kv_store);
-        pool.spawn(move || {
-            let request = read_cmd(&mut stream).unwrap();
-            let response = process_cmd(kv_store, request).unwrap();
-            respond(&mut stream, response).unwrap();
-        })
-    }
-
-    Ok(())
-}
-
-fn read_cmd(stream: &mut TcpStream) -> Result<Message> {
-    info!("connection from {:?}", stream.peer_addr()?);
-
-    //TODO: fixed-size buffer is a bug
-    let mut buffer = [0; 1024];
-
-    let size = stream.read(&mut buffer)?;
-    let request: Message = serde_json::from_slice(&buffer[..size])?;
-    Ok(request)
-}
-
-fn process_cmd(kv_store: Arc<impl KvsEngine + Sync>, msg: Message) -> Result<Message> {
-    let response = match msg {
-        Message::Set { ref key, ref value } => {
-            kv_store.set(key.to_owned(), value.to_owned())?;
-            Message::Reply {
-                reply: "Ok".to_owned(),
-            }
-        }
-        Message::Get { ref key } => match kv_store.get(key.to_owned())? {
-            Some(value) => Message::Reply { reply: value },
-            None => Message::Reply {
-                reply: "Key not found".to_owned(),
-            },
-        },
-        Message::Remove { ref key } => match kv_store.remove(key.to_owned()) {
-            Err(_) => Message::Err {
-                err: "Key not found".to_owned(),
-            },
-            Ok(_) => Message::Reply {
-                reply: "Ok".to_owned(),
-            },
-        },
-        _ => Message::Err {
-            err: "Invalid command".to_owned(),
-        },
-    };
-    Ok(response)
-}
-
-fn respond(stream: &mut TcpStream, resp: Message) -> Result<()> {
-    let response = serde_json::to_vec(&resp)?;
-    stream.write_all(&response)?;
     Ok(())
 }
 
