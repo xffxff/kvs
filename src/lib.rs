@@ -5,12 +5,14 @@
 //! to strings.
 #[macro_use]
 extern crate failure;
+mod client;
 mod engine;
 mod error;
 mod network;
 mod server;
 pub mod thread_pool;
 
+pub use crate::client::KvsClient;
 pub use crate::engine::simple_kvs::*;
 pub use crate::engine::sled_kvs::*;
 pub use crate::engine::*;

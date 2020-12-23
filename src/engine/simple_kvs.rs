@@ -65,10 +65,7 @@ impl KvStore {
             .open(&path.join("log.bson"))?;
         let (index, log_count) = KvStore::build_index(&mut f)?;
         Ok(KvStore {
-            reader: Arc::new(Mutex::new(Reader {
-                file: f,
-                path,
-            })),
+            reader: Arc::new(Mutex::new(Reader { file: f, path })),
             index: Arc::new(Mutex::new(index)),
             log_count: Arc::new(Mutex::new(log_count)),
         })
