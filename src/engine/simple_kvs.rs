@@ -1,5 +1,5 @@
 use crate::engine::Result;
-use crate::network::Message;
+use crate::network::Request;
 use crate::{engine::KvsEngine, error::KvsError};
 use bson::Document;
 use std::collections::HashMap;
@@ -67,7 +67,7 @@ impl KvStore {
         Ok(KvStore {
             reader: Arc::new(Mutex::new(Reader {
                 file: f,
-                path: path,
+                path,
             })),
             index: Arc::new(Mutex::new(index)),
             log_count: Arc::new(Mutex::new(log_count)),
@@ -80,12 +80,12 @@ impl KvStore {
         let mut last_log_pointer: u64 = 0;
         while let Ok(deserialized) = Document::from_reader(&mut f) {
             log_count += 1;
-            let doc: Message = bson::from_document(deserialized)?;
+            let doc: Request = bson::from_document(deserialized)?;
             match doc {
-                Message::Set { ref key, value: _ } => {
+                Request::Set { ref key, value: _ } => {
                     index.insert(key.to_owned(), last_log_pointer);
                 }
-                Message::Remove { ref key } => {
+                Request::Remove { ref key } => {
                     index.remove(key);
                 }
                 _ => {
@@ -124,7 +124,7 @@ impl KvStore {
                 if let Some(value) = self.get(key.clone())? {
                     let log_pointer = f.seek(SeekFrom::Current(0))?;
                     new_index.insert(key.clone(), log_pointer);
-                    let set = Message::Set { key, value };
+                    let set = Request::Set { key, value };
                     let serialized = bson::to_document(&set)?;
                     serialized.to_writer(&mut f)?;
                     new_log_count += 1;
@@ -155,7 +155,7 @@ impl KvsEngine for KvStore {
             let mut index = self.index.lock().map_err(|e| e.to_string())?;
             index.insert(key.clone(), log_pointer);
 
-            let set = Message::Set { key, value };
+            let set = Request::Set { key, value };
             let serialized = bson::to_document(&set)?;
             serialized.to_writer(&mut reader.file)?;
 
@@ -174,9 +174,9 @@ impl KvsEngine for KvStore {
                 let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
                 reader.file.seek(SeekFrom::Start(log_pointer.to_owned()))?;
                 let deserialized = Document::from_reader(&mut reader.file)?;
-                let msg: Message = bson::from_document(deserialized)?;
+                let msg: Request = bson::from_document(deserialized)?;
                 match msg {
-                    Message::Set { key: _, ref value } => Ok(Some(value.to_owned())),
+                    Request::Set { key: _, ref value } => Ok(Some(value.to_owned())),
                     _ => Err(KvsError::NotValidLog),
                 }
             }
@@ -188,7 +188,7 @@ impl KvsEngine for KvStore {
         let mut index = self.index.lock().map_err(|e| e.to_string())?;
         match index.get(&key) {
             Some(_) => {
-                let rm = Message::Remove { key: key.clone() };
+                let rm = Request::Remove { key: key.clone() };
                 let serialized = bson::to_document(&rm)?;
                 let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
                 serialized.to_writer(&mut reader.file)?;
