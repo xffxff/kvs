@@ -1,31 +1,31 @@
 use crate::engine::Result;
-use crate::thread_pool::{RayonThreadPool, ThreadPool};
+use crate::thread_pool::ThreadPool;
 use crate::KvsEngine;
 use crate::{Request, Response};
 use log::info;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 
-pub struct KvsServer<E: KvsEngine> {
+pub struct KvsServer<E: KvsEngine, T: ThreadPool> {
     store: E,
+    pool: T,
 }
 
-impl<E: KvsEngine> KvsServer<E> {
-    pub fn new(engine: E) -> Self {
-        KvsServer { store: engine }
+impl<E: KvsEngine, T: ThreadPool> KvsServer<E, T> {
+    pub fn new(engine: E, pool: T) -> Self {
+        KvsServer {
+            store: engine,
+            pool,
+        }
     }
 
     pub fn run(self, addr: SocketAddr) -> Result<()> {
         let listener = TcpListener::bind(addr)?;
 
-        let ncpu = num_cpus::get();
-        // let pool = SharedQueueThreadPool::new(ncpu as u32)?;
-        let pool = RayonThreadPool::new(ncpu as u32)?;
-
         for stream in listener.incoming() {
             let mut stream = stream?;
             let kv_store = self.store.clone();
-            pool.spawn(move || {
+            self.pool.spawn(move || {
                 let request = read_cmd(&mut stream).unwrap();
                 let response = process_cmd(kv_store, request).unwrap();
                 respond(&mut stream, response).unwrap();

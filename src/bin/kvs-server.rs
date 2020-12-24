@@ -4,6 +4,7 @@ extern crate clap;
 extern crate log;
 #[macro_use]
 extern crate failure;
+use kvs::thread_pool::{RayonThreadPool, ThreadPool};
 use kvs::KvsServer;
 use kvs::{KvStore, SledKvStore};
 use kvs::{KvsError, Result};
@@ -40,16 +41,20 @@ fn main() -> Result<()> {
     info!("IP:PORT {:?}", opt.addr);
     info!("Engine: {:?}", opt.engine);
 
+    let ncpu = num_cpus::get();
+    let ncpu = ncpu as u32;
+    let pool = RayonThreadPool::new(ncpu)?;
+
     let engine = get_engine(opt.engine)?;
     match engine {
         Engine::kvs => {
             let store = KvStore::open("./").unwrap();
-            let server = KvsServer::new(store);
+            let server = KvsServer::new(store, pool);
             server.run(opt.addr).unwrap();
         }
         Engine::sled => {
             let store = SledKvStore::open("./").unwrap();
-            let server = KvsServer::new(store);
+            let server = KvsServer::new(store, pool);
             server.run(opt.addr).unwrap();
         }
     }
