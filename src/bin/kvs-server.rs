@@ -49,12 +49,12 @@ fn main() -> Result<()> {
     match engine {
         Engine::kvs => {
             let store = KvStore::open("./").unwrap();
-            let server = KvsServer::new(store, pool);
+            let server = KvsServer::new(store, pool, None);
             server.run(opt.addr).unwrap();
         }
         Engine::sled => {
             let store = SledKvStore::open("./").unwrap();
-            let server = KvsServer::new(store, pool);
+            let server = KvsServer::new(store, pool, None);
             server.run(opt.addr).unwrap();
         }
     }
