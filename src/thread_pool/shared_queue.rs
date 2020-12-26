@@ -4,20 +4,26 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-type Thunk = Box<dyn FnOnce() + Send + 'static>;
+type Job = Box<dyn FnOnce() + Send + 'static>;
+
+enum Message {
+    RunJob(Job),
+    Shutdown,
+}
 
 pub struct SharedQueueThreadPool {
-    job: Sender<Thunk>,
+    threads: u32,
+    sender: Sender<Message>,
 }
 
 struct Sentinel<'a> {
-    job: &'a Arc<Mutex<Receiver<Thunk>>>,
+    receiver: &'a Arc<Mutex<Receiver<Message>>>,
     active: bool,
 }
 
 impl<'a> Sentinel<'a> {
-    fn new(job: &'a Arc<Mutex<Receiver<Thunk>>>) -> Self {
-        Sentinel { job, active: true }
+    fn new(receiver: &'a Arc<Mutex<Receiver<Message>>>) -> Self {
+        Sentinel { receiver, active: true }
     }
 
     fn cancel(mut self) {
@@ -28,7 +34,7 @@ impl<'a> Sentinel<'a> {
 impl<'a> Drop for Sentinel<'a> {
     fn drop(&mut self) {
         if self.active {
-            spawn_in_pool(self.job.clone());
+            spawn_in_pool(self.receiver.clone());
         }
     }
 }
@@ -46,29 +52,41 @@ impl ThreadPool for SharedQueueThreadPool {
             spawn_in_pool(rx);
         }
 
-        Ok(SharedQueueThreadPool { job: tx })
+        Ok(SharedQueueThreadPool { threads, sender: tx })
     }
 
     fn spawn<F>(&self, job: F)
     where
         F: FnOnce() + Send + 'static,
     {
-        self.job.send(Box::new(|| job())).unwrap();
+        let job = Box::new(job);
+        self.sender.send(Message::RunJob(job)).unwrap();
     }
 }
 
-fn spawn_in_pool(job: Arc<Mutex<Receiver<Thunk>>>) {
-    thread::spawn(move || {
-        let sentinel = Sentinel::new(&job);
-        loop {
-            let message = {
-                let lock = job.lock().unwrap();
-                lock.recv()
-            };
+impl Drop for SharedQueueThreadPool {
+    fn drop(&mut self) {
+        for _ in 0..self.threads {
+            self.sender.send(Message::Shutdown).unwrap();
+        }
+    }
+}
 
-            match message {
-                Ok(job) => job(),
-                Err(..) => break,
+fn spawn_in_pool(receiver: Arc<Mutex<Receiver<Message>>>) {
+    thread::spawn(move || {
+        let sentinel = Sentinel::new(&receiver);
+        loop {
+            let recv = receiver.lock().unwrap().recv(); 
+            match recv {
+                Ok(msg) => {
+                    match msg {
+                        Message::RunJob(job) => job(),
+                        Message::Shutdown => break,
+                    }
+                },
+                Err(_) => {
+                    break
+                }
             }
         }
 
