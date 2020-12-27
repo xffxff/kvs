@@ -2,21 +2,13 @@ extern crate rand;
 extern crate rand_chacha;
 use criterion::{criterion_group, criterion_main, Criterion};
 use kvs::thread_pool::{RayonThreadPool, SharedQueueThreadPool, ThreadPool};
-use kvs::{KvStore, KvsEngine};
+use kvs::KvStore;
 use kvs::{KvsClient, KvsServer};
-use rand::distributions::Alphanumeric;
-use rand::{Rng, SeedableRng};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
-
-fn random_string(rng: &mut impl rand::RngCore) -> String {
-    let size = rng.gen_range(1, 100000);
-    let rand_string = rng.sample_iter(&Alphanumeric).take(size).collect();
-    return rand_string;
-}
 
 pub fn write_queued_kvstore(c: &mut Criterion) {
     let inputs = &[1, 2, 4, 8, 16];

@@ -1,5 +1,6 @@
 use super::ThreadPool;
 use crate::engine::Result;
+use std::panic;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -89,7 +90,10 @@ impl Worker {
                 Message::NewJob(job) => {
                     info!("Worker {} got a job; executing.", id);
 
-                    job();
+                    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| job()));
+                    if result.is_err() {
+                        info!("Worker {} got an error", id)
+                    }
                 }
                 Message::Shutdown => {
                     info!("Worker {} was told to Shutdown.", id);
