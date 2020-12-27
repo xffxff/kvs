@@ -27,19 +27,22 @@ pub fn write_queued_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
+                let client_num = 8;
+                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
                 b.iter(|| {
-                    let client_num = 8;
-                    let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
-                    for i in 0..client_num {
+                    let (sender, receiver) = mpsc::channel();
+                    for i in 0..1000 {
+                        let sender = mpsc::Sender::clone(&sender);
                         client_pool.spawn(move || {
-                            for j in 0..100 {
-                                let mut client = KvsClient::new(&addr).unwrap();
-                                client
-                                    .set(format!("key{}", i * 100 + j), "value1".to_owned())
-                                    .unwrap();
-                            }
+                            sender.send(()).unwrap();
+                            let mut client = KvsClient::new(&addr).unwrap();
+                            client
+                                .set(format!("key{}", i), "value1".to_owned())
+                                .unwrap();
                         });
                     }
+                    drop(sender);
+                    for _ in receiver {}
                 });
             }
             tx.send(()).unwrap();
