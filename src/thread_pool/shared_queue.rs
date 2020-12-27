@@ -1,95 +1,107 @@
 use super::ThreadPool;
 use crate::engine::Result;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
+
+pub struct SharedQueueThreadPool {
+    workers: Vec<Worker>,
+    sender: mpsc::Sender<Message>,
+}
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
 enum Message {
-    RunJob(Job),
+    NewJob(Job),
     Shutdown,
 }
 
-pub struct SharedQueueThreadPool {
-    threads: u32,
-    sender: Sender<Message>,
-}
-
-struct Sentinel<'a> {
-    receiver: &'a Arc<Mutex<Receiver<Message>>>,
-    active: bool,
-}
-
-impl<'a> Sentinel<'a> {
-    fn new(receiver: &'a Arc<Mutex<Receiver<Message>>>) -> Self {
-        Sentinel { receiver, active: true }
-    }
-
-    fn cancel(mut self) {
-        self.active = false;
-    }
-}
-
-impl<'a> Drop for Sentinel<'a> {
-    fn drop(&mut self) {
-        if self.active {
-            spawn_in_pool(self.receiver.clone());
-        }
-    }
-}
-
 impl ThreadPool for SharedQueueThreadPool {
-    fn new(threads: u32) -> Result<Self>
+    /// Create a new ThreadPool.
+    ///
+    /// The size is the number of threads in the pool.
+    ///
+    /// # Panics
+    ///
+    /// The `new` function will panic if the size is zero.
+    fn new(size: u32) -> Result<Self>
     where
         Self: Sized,
     {
-        let (tx, rx) = channel();
-        let rx = Arc::new(Mutex::new(rx));
+        assert!(size > 0);
 
-        for _ in 0..threads {
-            let rx = Arc::clone(&rx);
-            spawn_in_pool(rx);
+        let (sender, receiver) = mpsc::channel();
+
+        let receiver = Arc::new(Mutex::new(receiver));
+
+        let mut workers = Vec::with_capacity(size as usize);
+
+        for id in 0..size {
+            workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        Ok(SharedQueueThreadPool { threads, sender: tx })
+        Ok(SharedQueueThreadPool { workers, sender })
     }
 
-    fn spawn<F>(&self, job: F)
+    fn spawn<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
     {
-        let job = Box::new(job);
-        self.sender.send(Message::RunJob(job)).unwrap();
+        let job = Box::new(f);
+
+        self.sender.send(Message::NewJob(job)).unwrap();
     }
 }
 
 impl Drop for SharedQueueThreadPool {
     fn drop(&mut self) {
-        for _ in 0..self.threads {
+        info!("Sending Shutdown message to all workers.");
+
+        for _ in &self.workers {
             self.sender.send(Message::Shutdown).unwrap();
+        }
+
+        info!("Shutting down all workers.");
+
+        for worker in &mut self.workers {
+            info!("Shutting down worker {}", worker.id);
+
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
         }
     }
 }
 
-fn spawn_in_pool(receiver: Arc<Mutex<Receiver<Message>>>) {
-    thread::spawn(move || {
-        let sentinel = Sentinel::new(&receiver);
-        loop {
-            let recv = receiver.lock().unwrap().recv(); 
-            match recv {
-                Ok(msg) => {
-                    match msg {
-                        Message::RunJob(job) => job(),
-                        Message::Shutdown => break,
-                    }
-                },
-                Err(_) => {
-                    break
+struct Worker {
+    id: u32,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+impl Worker {
+    fn new(id: u32, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
+        info!("create worker {}", id);
+        let thread = thread::spawn(move || loop {
+            let message = receiver.lock().unwrap().recv().unwrap();
+
+            match message {
+                Message::NewJob(job) => {
+                    info!("Worker {} got a job; executing.", id);
+
+                    job();
+                }
+                Message::Shutdown => {
+                    info!("Worker {} was told to Shutdown.", id);
+
+                    break;
                 }
             }
-        }
+        });
 
-        sentinel.cancel();
-    });
+        Worker {
+            id,
+            thread: Some(thread),
+        }
+    }
 }

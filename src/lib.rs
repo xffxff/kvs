@@ -5,6 +5,8 @@
 //! to strings.
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate log;
 mod client;
 mod engine;
 mod error;

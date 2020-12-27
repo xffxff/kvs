@@ -18,8 +18,8 @@ impl<E: KvsEngine, T: ThreadPool> KvsServer<E, T> {
     pub fn new(engine: E, pool: T, receiver: Option<mpsc::Receiver<()>>) -> Self {
         KvsServer {
             store: engine,
-            pool: pool,
-            receiver: receiver,
+            pool,
+            receiver,
         }
     }
 
