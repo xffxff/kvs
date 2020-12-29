@@ -159,7 +159,7 @@ impl KvsEngine for KvStore {
             let mut log_count = self.log_count.lock().map_err(|e| e.to_string())?;
             *log_count += 1;
         }
-        self.compact().map_err(|e| e.to_string())?;
+        // self.compact().map_err(|e| e.to_string())?;
 
         Ok(())
     }

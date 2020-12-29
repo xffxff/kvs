@@ -17,7 +17,7 @@ pub fn write_queued_kvstore(c: &mut Criterion) {
         |b, &num| {
             let temp_dir = TempDir::new().expect("unable to create temporary working directory");
             let store = KvStore::open(temp_dir.path()).unwrap();
-            let pool = RayonThreadPool::new(*num as u32).unwrap();
+            let pool = SharedQueueThreadPool::new(*num as u32).unwrap();
             let (tx, rx) = mpsc::channel();
             let server = KvsServer::new(store, pool, Some(rx));
             let port = 4000;
@@ -34,11 +34,11 @@ pub fn write_queued_kvstore(c: &mut Criterion) {
                     for i in 0..1000 {
                         let sender = mpsc::Sender::clone(&sender);
                         client_pool.spawn(move || {
-                            sender.send(()).unwrap();
                             let mut client = KvsClient::new(&addr).unwrap();
                             client
                                 .set(format!("key{}", i), "value1".to_owned())
                                 .unwrap();
+                            sender.send(()).unwrap();
                         });
                     }
                     drop(sender);
