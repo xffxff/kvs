@@ -145,17 +145,25 @@ impl KvStore {
 
 impl KvsEngine for KvStore {
     fn set(&self, key: String, value: String) -> Result<()> {
-        {
+        let log_pointer = {
             let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
-            let log_pointer = reader.file.seek(SeekFrom::Current(0))?;
-
+            reader.file.seek(SeekFrom::Current(0))?
+        };
+        {
             let mut index = self.index.lock().map_err(|e| e.to_string())?;
             index.insert(key.clone(), log_pointer);
+        }
 
+        let serialized = {
             let set = Request::Set { key, value };
-            let serialized = bson::to_document(&set)?;
+            bson::to_document(&set)?
+        };
+        {
+            let mut reader = self.reader.lock().map_err(|e| e.to_string())?;
             serialized.to_writer(&mut reader.file)?;
+        }
 
+        {
             let mut log_count = self.log_count.lock().map_err(|e| e.to_string())?;
             *log_count += 1;
         }
