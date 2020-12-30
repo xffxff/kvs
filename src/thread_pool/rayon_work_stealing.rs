@@ -21,6 +21,6 @@ impl ThreadPool for RayonThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
-        self.pool.install(job);
+        self.pool.spawn(job);
     }
 }
