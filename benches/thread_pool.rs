@@ -2,6 +2,7 @@ extern crate rand;
 extern crate rand_chacha;
 use criterion::{criterion_group, criterion_main, Criterion};
 use kvs::thread_pool::{RayonThreadPool, SharedQueueThreadPool, ThreadPool};
+use kvs::Response;
 use kvs::{KvStore, SledKvStore};
 use kvs::{KvsClient, KvsServer};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -9,10 +10,41 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
-use kvs::Response;
+
+static SERVER_THREAD_NUMS: &[i32] = &[1, 2, 4, 8, 16];
+
+fn thread_pool_set(thread_pool: &impl ThreadPool, addr: SocketAddr) {
+    let (sender, receiver) = mpsc::channel();
+    for i in 0..1000 {
+        let sender = mpsc::Sender::clone(&sender);
+        thread_pool.spawn(move || {
+            let mut client = KvsClient::new(&addr).unwrap();
+            client.set(format!("key{}", i), "value".to_owned()).unwrap();
+            sender.send(()).unwrap();
+        });
+    }
+    drop(sender);
+    for _ in receiver {}
+}
+
+fn thread_pool_get(thread_pool: &impl ThreadPool, addr: SocketAddr) {
+    let (sender, receiver) = mpsc::channel();
+    for i in 0..1000 {
+        let sender = mpsc::Sender::clone(&sender);
+        thread_pool.spawn(move || {
+            let mut client = KvsClient::new(&addr).unwrap();
+            let response = client.get(format!("key{}", i)).unwrap();
+            if let Response::Ok(option) = response {
+                assert_eq!(option, Some("value".to_string()));
+            }
+            sender.send(()).unwrap();
+        });
+    }
+    drop(sender);
+    for _ in receiver {}
+}
 
 pub fn write_queued_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "write queued kvstore",
         |b, &num| {
@@ -30,31 +62,16 @@ pub fn write_queued_kvstore(c: &mut Criterion) {
             {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
-                b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            client
-                                .set(format!("key{}", i), "value1".to_owned())
-                                .unwrap();
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
-                });
+                b.iter(|| thread_pool_set(&client_pool, addr));
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
 pub fn read_queued_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "read queued kvstore",
         |b, &num| {
@@ -72,47 +89,20 @@ pub fn read_queued_kvstore(c: &mut Criterion) {
             {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
-
-                let (sender, receiver) = mpsc::channel();
-                for i in 0..1000 {
-                    let sender = mpsc::Sender::clone(&sender);
-                    client_pool.spawn(move || {
-                        let mut client = KvsClient::new(&addr).unwrap();
-                        client
-                            .set(format!("key{}", i), "value".to_owned())
-                            .unwrap();
-                        sender.send(()).unwrap();
-                    });
-                }
-                drop(sender);
-                for _ in receiver {}
+                thread_pool_set(&client_pool, addr);
 
                 b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            let response = client.get(format!("key{}", i)).unwrap();
-                            if let Response::Ok(option) = response {
-                                assert_eq!(option, Some("value".to_string()));
-                            }
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
+                    thread_pool_get(&client_pool, addr);
                 });
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
 pub fn write_rayon_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "write rayon kvstore",
         |b, &num| {
@@ -131,30 +121,17 @@ pub fn write_rayon_kvstore(c: &mut Criterion) {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
                 b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            client
-                                .set(format!("key{}", i), "value1".to_owned())
-                                .unwrap();
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
+                    thread_pool_set(&client_pool, addr);
                 });
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
 pub fn read_rayon_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "read rayon kvstore",
         |b, &num| {
@@ -173,46 +150,20 @@ pub fn read_rayon_kvstore(c: &mut Criterion) {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
 
-                let (sender, receiver) = mpsc::channel();
-                for i in 0..1000 {
-                    let sender = mpsc::Sender::clone(&sender);
-                    client_pool.spawn(move || {
-                        let mut client = KvsClient::new(&addr).unwrap();
-                        client
-                            .set(format!("key{}", i), "value".to_owned())
-                            .unwrap();
-                        sender.send(()).unwrap();
-                    });
-                }
-                drop(sender);
-                for _ in receiver {}
+                thread_pool_set(&client_pool, addr);
 
                 b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            let response = client.get(format!("key{}", i)).unwrap();
-                            if let Response::Ok(option) = response {
-                                assert_eq!(option, Some("value".to_string()));
-                            }
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
+                    thread_pool_get(&client_pool, addr);
                 });
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
 pub fn write_queued_sled_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "write queued sled kvstore",
         |b, &num| {
@@ -231,30 +182,17 @@ pub fn write_queued_sled_kvstore(c: &mut Criterion) {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
                 b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            client
-                                .set(format!("key{}", i), "value1".to_owned())
-                                .unwrap();
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
+                    thread_pool_set(&client_pool, addr);
                 });
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
 pub fn read_queued_sled_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "read queued sled kvstore",
         |b, &num| {
@@ -273,46 +211,20 @@ pub fn read_queued_sled_kvstore(c: &mut Criterion) {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
 
-                let (sender, receiver) = mpsc::channel();
-                for i in 0..1000 {
-                    let sender = mpsc::Sender::clone(&sender);
-                    client_pool.spawn(move || {
-                        let mut client = KvsClient::new(&addr).unwrap();
-                        client
-                            .set(format!("key{}", i), "value".to_owned())
-                            .unwrap();
-                        sender.send(()).unwrap();
-                    });
-                }
-                drop(sender);
-                for _ in receiver {}
+                thread_pool_set(&client_pool, addr);
 
                 b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            let response = client.get(format!("key{}", i)).unwrap();
-                            if let Response::Ok(option) = response {
-                                assert_eq!(option, Some("value".to_string()));
-                            }
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
+                    thread_pool_get(&client_pool, addr);
                 });
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
 pub fn write_rayon_sled_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "write rayon sled kvstore",
         |b, &num| {
@@ -331,30 +243,17 @@ pub fn write_rayon_sled_kvstore(c: &mut Criterion) {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
                 b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            client
-                                .set(format!("key{}", i), "value1".to_owned())
-                                .unwrap();
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
+                    thread_pool_set(&client_pool, addr);
                 });
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
 pub fn read_rayon_sled_kvstore(c: &mut Criterion) {
-    let inputs = &[1, 2, 4, 8, 16];
     c.bench_function_over_inputs(
         "read rayon sled kvstore",
         |b, &num| {
@@ -373,43 +272,28 @@ pub fn read_rayon_sled_kvstore(c: &mut Criterion) {
                 let client_num = 8;
                 let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
 
-                let (sender, receiver) = mpsc::channel();
-                for i in 0..1000 {
-                    let sender = mpsc::Sender::clone(&sender);
-                    client_pool.spawn(move || {
-                        let mut client = KvsClient::new(&addr).unwrap();
-                        client
-                            .set(format!("key{}", i), "value".to_owned())
-                            .unwrap();
-                        sender.send(()).unwrap();
-                    });
-                }
-                drop(sender);
-                for _ in receiver {}
+                thread_pool_set(&client_pool, addr);
 
                 b.iter(|| {
-                    let (sender, receiver) = mpsc::channel();
-                    for i in 0..1000 {
-                        let sender = mpsc::Sender::clone(&sender);
-                        client_pool.spawn(move || {
-                            let mut client = KvsClient::new(&addr).unwrap();
-                            let response = client.get(format!("key{}", i)).unwrap();
-                            if let Response::Ok(option) = response {
-                                assert_eq!(option, Some("value".to_string()));
-                            }
-                            sender.send(()).unwrap();
-                        });
-                    }
-                    drop(sender);
-                    for _ in receiver {}
+                    thread_pool_get(&client_pool, addr);
                 });
             }
             tx.send(()).unwrap();
             handle.join().unwrap();
         },
-        inputs,
+        SERVER_THREAD_NUMS,
     );
 }
 
-criterion_group!(benches, read_rayon_kvstore, read_rayon_sled_kvstore);
+criterion_group!(
+    benches,
+    write_queued_kvstore,
+    read_queued_kvstore,
+    write_rayon_kvstore,
+    read_rayon_kvstore,
+    write_queued_sled_kvstore,
+    read_queued_sled_kvstore,
+    write_rayon_sled_kvstore,
+    read_rayon_sled_kvstore
+);
 criterion_main!(benches);
