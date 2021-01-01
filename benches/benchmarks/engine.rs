@@ -1,6 +1,6 @@
 extern crate rand;
 extern crate rand_chacha;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, Criterion};
 use kvs::{KvStore, KvsEngine, SledKvStore};
 use rand::distributions::Alphanumeric;
 use rand::{Rng, SeedableRng};
@@ -12,11 +12,11 @@ fn random_string(rng: &mut impl rand::RngCore) -> String {
     return rand_string;
 }
 
-pub fn kvs_write(c: &mut Criterion) {
+fn kvs_write(c: &mut Criterion) {
     c.bench_function("kvs write", |b| {
         b.iter(|| {
             let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-            let mut store = KvStore::open(temp_dir.path()).unwrap();
+            let store = KvStore::open(temp_dir.path()).unwrap();
 
             let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(10);
             for _ in 0..100 {
@@ -28,11 +28,11 @@ pub fn kvs_write(c: &mut Criterion) {
     });
 }
 
-pub fn sled_write(c: &mut Criterion) {
+fn sled_write(c: &mut Criterion) {
     c.bench_function("sled write", |b| {
         b.iter(|| {
             let temp_dir = TempDir::new().expect("unable to create temporary working directory");
-            let mut store = SledKvStore::open(temp_dir.path()).unwrap();
+            let store = SledKvStore::open(temp_dir.path()).unwrap();
 
             let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(10);
             for _ in 0..100 {
@@ -44,9 +44,9 @@ pub fn sled_write(c: &mut Criterion) {
     });
 }
 
-pub fn kvs_read(c: &mut Criterion) {
+fn kvs_read(c: &mut Criterion) {
     let temp_dir = TempDir::new().expect("unabble to create temporary working directory");
-    let mut store = KvStore::open(temp_dir.path()).unwrap();
+    let store = KvStore::open(temp_dir.path()).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(10);
     let mut keys: Vec<String> = Vec::new();
@@ -69,9 +69,9 @@ pub fn kvs_read(c: &mut Criterion) {
     });
 }
 
-pub fn sled_read(c: &mut Criterion) {
+fn sled_read(c: &mut Criterion) {
     let temp_dir = TempDir::new().expect("unabble to create temporary working directory");
-    let mut store = SledKvStore::open(temp_dir.path()).unwrap();
+    let store = SledKvStore::open(temp_dir.path()).unwrap();
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(10);
     let mut keys: Vec<String> = Vec::new();
@@ -94,5 +94,5 @@ pub fn sled_read(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, kvs_write, sled_write, kvs_read, sled_read);
-criterion_main!(benches);
+criterion_group!(write, kvs_write, sled_write);
+criterion_group!(read, kvs_read, sled_read);

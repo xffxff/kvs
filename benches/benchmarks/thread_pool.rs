@@ -1,6 +1,6 @@
 extern crate rand;
 extern crate rand_chacha;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, Criterion};
 use kvs::thread_pool::{RayonThreadPool, SharedQueueThreadPool, ThreadPool};
 use kvs::Response;
 use kvs::{KvStore, SledKvStore};
@@ -12,6 +12,7 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 static SERVER_THREAD_NUMS: &[i32] = &[1, 2, 4, 8, 16];
+static CLIENT_THREAD_NUM: u32 = 64;
 
 fn thread_pool_set(thread_pool: &impl ThreadPool, addr: SocketAddr) {
     let (sender, receiver) = mpsc::channel();
@@ -44,7 +45,7 @@ fn thread_pool_get(thread_pool: &impl ThreadPool, addr: SocketAddr) {
     for _ in receiver {}
 }
 
-pub fn write_queued_kvstore(c: &mut Criterion) {
+fn write_queued_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "write queued kvstore",
         |b, &num| {
@@ -60,8 +61,7 @@ pub fn write_queued_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| thread_pool_set(&client_pool, addr));
             }
             tx.send(()).unwrap();
@@ -71,7 +71,7 @@ pub fn write_queued_kvstore(c: &mut Criterion) {
     );
 }
 
-pub fn read_queued_kvstore(c: &mut Criterion) {
+fn read_queued_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "read queued kvstore",
         |b, &num| {
@@ -87,8 +87,7 @@ pub fn read_queued_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 thread_pool_set(&client_pool, addr);
 
                 b.iter(|| {
@@ -102,7 +101,7 @@ pub fn read_queued_kvstore(c: &mut Criterion) {
     );
 }
 
-pub fn write_rayon_kvstore(c: &mut Criterion) {
+fn write_rayon_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "write rayon kvstore",
         |b, &num| {
@@ -118,8 +117,7 @@ pub fn write_rayon_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| {
                     thread_pool_set(&client_pool, addr);
                 });
@@ -131,7 +129,7 @@ pub fn write_rayon_kvstore(c: &mut Criterion) {
     );
 }
 
-pub fn read_rayon_kvstore(c: &mut Criterion) {
+fn read_rayon_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "read rayon kvstore",
         |b, &num| {
@@ -147,8 +145,7 @@ pub fn read_rayon_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
 
                 thread_pool_set(&client_pool, addr);
 
@@ -163,7 +160,7 @@ pub fn read_rayon_kvstore(c: &mut Criterion) {
     );
 }
 
-pub fn write_queued_sled_kvstore(c: &mut Criterion) {
+fn write_queued_sled_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "write queued sled kvstore",
         |b, &num| {
@@ -179,8 +176,7 @@ pub fn write_queued_sled_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| {
                     thread_pool_set(&client_pool, addr);
                 });
@@ -192,7 +188,7 @@ pub fn write_queued_sled_kvstore(c: &mut Criterion) {
     );
 }
 
-pub fn read_queued_sled_kvstore(c: &mut Criterion) {
+fn read_queued_sled_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "read queued sled kvstore",
         |b, &num| {
@@ -208,8 +204,7 @@ pub fn read_queued_sled_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
 
                 thread_pool_set(&client_pool, addr);
 
@@ -224,7 +219,7 @@ pub fn read_queued_sled_kvstore(c: &mut Criterion) {
     );
 }
 
-pub fn write_rayon_sled_kvstore(c: &mut Criterion) {
+fn write_rayon_sled_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "write rayon sled kvstore",
         |b, &num| {
@@ -240,8 +235,7 @@ pub fn write_rayon_sled_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| {
                     thread_pool_set(&client_pool, addr);
                 });
@@ -253,7 +247,7 @@ pub fn write_rayon_sled_kvstore(c: &mut Criterion) {
     );
 }
 
-pub fn read_rayon_sled_kvstore(c: &mut Criterion) {
+fn read_rayon_sled_kvstore(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "read rayon sled kvstore",
         |b, &num| {
@@ -269,8 +263,7 @@ pub fn read_rayon_sled_kvstore(c: &mut Criterion) {
             });
             thread::sleep(Duration::from_millis(10));
             {
-                let client_num = 8;
-                let client_pool = SharedQueueThreadPool::new(client_num).unwrap();
+                let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
 
                 thread_pool_set(&client_pool, addr);
 
@@ -286,14 +279,10 @@ pub fn read_rayon_sled_kvstore(c: &mut Criterion) {
 }
 
 criterion_group!(
-    benches,
+    write_queued,
     write_queued_kvstore,
-    read_queued_kvstore,
-    write_rayon_kvstore,
-    read_rayon_kvstore,
-    write_queued_sled_kvstore,
-    read_queued_sled_kvstore,
-    write_rayon_sled_kvstore,
-    read_rayon_sled_kvstore
+    write_queued_sled_kvstore
 );
-criterion_main!(benches);
+criterion_group!(write_rayon, write_rayon_kvstore, write_rayon_sled_kvstore);
+criterion_group!(read_queued, read_queued_kvstore, read_queued_sled_kvstore);
+criterion_group!(read_rayon, read_rayon_kvstore, read_rayon_sled_kvstore);
