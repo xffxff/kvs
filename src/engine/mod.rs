@@ -7,15 +7,15 @@ use std::result;
 pub type Result<T> = result::Result<T, KvsError>;
 
 /// Define the storage interface
-pub trait KvsEngine {
+pub trait KvsEngine: Clone + Send + 'static {
     /// Set the value of a string key to a string
-    fn set(&mut self, key: String, value: String) -> Result<()>;
+    fn set(&self, key: String, value: String) -> Result<()>;
 
     /// Get the string value of a string key. If the key does not exist, return None
-    fn get(&mut self, key: String) -> Result<Option<String>>;
+    fn get(&self, key: String) -> Result<Option<String>>;
 
     /// Remove a given string key
-    fn remove(&mut self, key: String) -> Result<()>;
+    fn remove(&self, key: String) -> Result<()>;
 }
 
 /// A simple kv store using hash map store key/value

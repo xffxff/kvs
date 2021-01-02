@@ -4,13 +4,14 @@ extern crate clap;
 extern crate log;
 #[macro_use]
 extern crate failure;
-use kvs::{KvStore, KvsEngine, SledKvStore};
-use kvs::{KvsError, Message, Result};
+use kvs::thread_pool::{RayonThreadPool, ThreadPool};
+use kvs::KvsServer;
+use kvs::{KvStore, SledKvStore};
+use kvs::{KvsError, Result};
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
-use std::io::prelude::*;
-use std::net::{SocketAddr, TcpListener};
+use std::net::SocketAddr;
 use std::path::Path;
 use structopt::StructOpt;
 
@@ -40,62 +41,27 @@ fn main() -> Result<()> {
     info!("IP:PORT {:?}", opt.addr);
     info!("Engine: {:?}", opt.engine);
 
-    let mut kv_store = get_engine(opt.engine)?;
+    let ncpu = num_cpus::get();
+    let ncpu = ncpu as u32;
+    let pool = RayonThreadPool::new(ncpu)?;
 
-    let listener = TcpListener::bind(opt.addr)?;
-
-    for stream in listener.incoming() {
-        let mut stream = stream?;
-        info!("connection from {:?}", stream.peer_addr()?);
-
-        let mut buffer = [0; 1024];
-
-        let size = stream.read(&mut buffer)?;
-        let request: Message = serde_json::from_slice(&buffer[..size])?;
-        match request {
-            Message::Set { ref key, ref value } => {
-                kv_store.set(key.to_owned(), value.to_owned())?;
-            }
-            Message::Get { ref key } => match kv_store.get(key.to_owned())? {
-                Some(value) => {
-                    let response = Message::Reply {
-                        reply: value.to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-                None => {
-                    let response = Message::Reply {
-                        reply: "Key not found".to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-            },
-            Message::Remove { ref key } => match kv_store.remove(key.to_owned()) {
-                Err(_) => {
-                    let response = Message::Err {
-                        err: "Key not found".to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-                Ok(_) => {
-                    let response = Message::Reply {
-                        reply: "Ok".to_owned(),
-                    };
-                    let response = serde_json::to_vec(&response)?;
-                    stream.write_all(&response)?;
-                }
-            },
-            _ => {}
+    let engine = get_engine(opt.engine)?;
+    match engine {
+        Engine::kvs => {
+            let store = KvStore::open("./").unwrap();
+            let server = KvsServer::new(store, pool, None);
+            server.run(opt.addr).unwrap();
+        }
+        Engine::sled => {
+            let store = SledKvStore::open("./").unwrap();
+            let server = KvsServer::new(store, pool, None);
+            server.run(opt.addr).unwrap();
         }
     }
-
     Ok(())
 }
 
-fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
+fn get_engine(possible_engine: Option<Engine>) -> Result<Engine> {
     let mut persisted_engine: Option<Engine> = None;
     if Path::new("config").exists() {
         let f = OpenOptions::new().read(true).open("config")?;
@@ -129,14 +95,16 @@ fn get_engine(possible_engine: Option<Engine>) -> Result<Box<dyn KvsEngine>> {
 
     match engine {
         Engine::kvs => {
-            let kv_store = KvStore::open("./")?;
+            // let kv_store = KvStore::open("./")?;
             serde_json::to_writer(f, &engine)?;
-            Ok(Box::new(kv_store))
+            Ok(Engine::kvs)
+            // Ok(Box::new(kv_store))
         }
         Engine::sled => {
-            let kv_store = SledKvStore::open("./")?;
+            // let kv_store = SledKvStore::open("./")?;
             serde_json::to_writer(f, &engine)?;
-            Ok(Box::new(kv_store))
+            Ok(Engine::sled)
+            // Ok(Box::new(kv_store))
         }
     }
 }

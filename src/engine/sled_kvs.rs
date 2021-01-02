@@ -33,6 +33,7 @@ use std::path::PathBuf;
 /// Ok(())   
 /// # }
 /// ```
+#[derive(Clone)]
 pub struct SledKvStore {
     db: sled::Db,
 }
@@ -50,13 +51,13 @@ impl SledKvStore {
 }
 
 impl KvsEngine for SledKvStore {
-    fn set(&mut self, key: String, value: String) -> Result<()> {
+    fn set(&self, key: String, value: String) -> Result<()> {
         self.db.insert(key.as_bytes(), value.as_bytes())?;
         self.db.flush()?;
         Ok(())
     }
 
-    fn get(&mut self, key: String) -> Result<Option<String>> {
+    fn get(&self, key: String) -> Result<Option<String>> {
         let result = self.db.get(key.as_bytes())?;
         match result {
             Some(value) => {
@@ -67,7 +68,7 @@ impl KvsEngine for SledKvStore {
         }
     }
 
-    fn remove(&mut self, key: String) -> Result<()> {
+    fn remove(&self, key: String) -> Result<()> {
         let result = self.db.remove(key.as_bytes())?;
         self.db.flush()?;
         if result.is_none() {

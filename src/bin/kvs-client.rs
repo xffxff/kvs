@@ -1,9 +1,10 @@
 #[macro_use]
 extern crate failure;
+use kvs::KvsClient;
+use kvs::KvsError;
+use kvs::Response;
 use kvs::Result;
-use kvs::{KvsError, Message};
-use std::io::prelude::*;
-use std::net::{SocketAddr, TcpStream};
+use std::net::SocketAddr;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -44,41 +45,23 @@ fn main() -> Result<()> {
             ref value,
             ref addr,
         } => {
-            let mut stream = TcpStream::connect(addr)?;
-            let request = Message::Set {
-                key: key.to_owned(),
-                value: value.to_owned(),
-            };
-            let request = serde_json::to_vec(&request)?;
-            stream.write_all(&request)?;
+            let mut client = KvsClient::new(addr)?;
+            client.set(key.to_owned(), value.to_owned())?;
         }
         Command::Get { ref key, ref addr } => {
-            let mut stream = TcpStream::connect(addr)?;
-            let request = Message::Get {
-                key: key.to_owned(),
-            };
-            let request = serde_json::to_vec(&request)?;
-            stream.write_all(&request)?;
-
-            let mut buffer = [0; 1024];
-            let size = stream.read(&mut buffer)?;
-            let response: Message = serde_json::from_slice(&buffer[..size])?;
-            if let Message::Reply { ref reply } = response {
-                println!("{}", reply);
+            let mut client = KvsClient::new(addr)?;
+            let response = client.get(key.to_owned())?;
+            if let Response::Ok(option) = response {
+                match option {
+                    Some(value) => println!("{}", value),
+                    None => println!("Key not found"),
+                }
             }
         }
         Command::Remove { ref key, ref addr } => {
-            let mut stream = TcpStream::connect(addr)?;
-            let request = Message::Remove {
-                key: key.to_owned(),
-            };
-            let request = serde_json::to_vec(&request)?;
-            stream.write_all(&request)?;
-
-            let mut buffer = [0; 1024];
-            let size = stream.read(&mut buffer)?;
-            let response: Message = serde_json::from_slice(&buffer[..size])?;
-            if let Message::Err { ref err } = response {
+            let mut client = KvsClient::new(addr)?;
+            let response = client.remove(key.to_owned())?;
+            if let Response::Err(err) = response {
                 eprintln!("{}", err);
                 return Err(KvsError::KeyNotFound);
             }
