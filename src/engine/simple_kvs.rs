@@ -21,13 +21,7 @@ impl KvStore {
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
         let path: PathBuf = path.into();
         let log_path = path.join("log.bson");
-        let f = OpenOptions::new()
-            .read(true)
-            .create(true)
-            .append(true)
-            .open(log_path.clone())?;
-        let mut reader = BufReader::new(f);
-        let index = KvStore::build_index(&mut reader)?;
+        let index = KvStore::build_index(&path)?;
 
         let f = OpenOptions::new()
             .write(true)
@@ -43,11 +37,19 @@ impl KvStore {
         Ok(kv_store)
     }
 
-    fn build_index(reader: &mut BufReader<File>) -> Result<DashMap<String, u64>> {
+    fn build_index(path: &PathBuf) -> Result<DashMap<String, u64>> {
         let index: DashMap<String, u64> = DashMap::new();
         let mut last_log_pointer = 0;
 
-        while let Ok(deserialized) = Document::from_reader(reader) {
+        let log_path = path.join("log.bson");
+        let f = OpenOptions::new()
+            .read(true)
+            .create(true)
+            .append(true)
+            .open(log_path.clone())?;
+        let mut reader = BufReader::new(f);
+
+        while let Ok(deserialized) = Document::from_reader(&mut reader) {
             let doc: Request = bson::from_document(deserialized)?;
             match doc {
                 Request::Set { ref key, value: _ } => {
@@ -65,6 +67,10 @@ impl KvStore {
 
         Ok(index)
     }
+
+    // fn compact(&self) -> Result<()> {
+
+    // }
 }
 
 impl KvsEngine for KvStore {
@@ -113,10 +119,10 @@ impl KvsEngine for KvStore {
                 let mut writer = self.writer.lock().unwrap();
                 serialized.to_writer(&mut *writer)?;
                 writer.flush()?;
-                self.index.remove(&key);
             }
             None => return Err(KvsError::NotValidLog),
         }
+        self.index.remove(&key);
         Ok(())
     }
 }
