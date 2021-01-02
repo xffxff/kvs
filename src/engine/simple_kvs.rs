@@ -8,12 +8,13 @@ use std::io::SeekFrom;
 use std::io::{BufReader, BufWriter};
 use std::io::{Seek, Write};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 #[derive(Clone)]
-pub struct KvStore(Arc<Mutex<SharedKvStore>>);
+pub struct KvStore(Arc<RwLock<SharedKvStore>>);
 
 pub struct SharedKvStore {
+    path: PathBuf,
     reader: BufReader<File>,
     writer: BufWriter<File>,
     index: HashMap<String, u64>,
@@ -38,11 +39,12 @@ impl KvStore {
             .open(log_path)?;
         let writer = BufWriter::new(f);
         let shared_kv_store = SharedKvStore {
+            path,
             reader,
             writer,
             index,
         };
-        Ok(KvStore(Arc::new(Mutex::new(shared_kv_store))))
+        Ok(KvStore(Arc::new(RwLock::new(shared_kv_store))))
     }
 
     fn build_index(reader: &mut BufReader<File>) -> Result<HashMap<String, u64>> {
@@ -71,7 +73,7 @@ impl KvStore {
 
 impl KvsEngine for KvStore {
     fn set(&self, key: String, value: String) -> Result<()> {
-        let mut store = self.0.lock().unwrap();
+        let mut store = self.0.write().unwrap();
         let log_pointer = store.writer.seek(SeekFrom::End(0))?;
         store.index.insert(key.clone(), log_pointer);
 
@@ -83,12 +85,19 @@ impl KvsEngine for KvStore {
     }
 
     fn get(&self, key: String) -> Result<Option<String>> {
-        let mut store = self.0.lock().unwrap();
+        let store = self.0.read().unwrap();
         let index = store.index.clone();
         match index.get(&key) {
             Some(log_pointer) => {
-                store.reader.seek(SeekFrom::Start(log_pointer.to_owned()))?;
-                let deserialized = Document::from_reader(&mut store.reader)?;
+                let log_path = store.path.join("log.bson");
+                let f = OpenOptions::new()
+                    .read(true)
+                    .create(true)
+                    .append(true)
+                    .open(log_path.clone())?;
+                let mut reader = BufReader::new(f);
+                reader.seek(SeekFrom::Start(log_pointer.to_owned()))?;
+                let deserialized = Document::from_reader(&mut reader)?;
                 let msg: Request = bson::from_document(deserialized)?;
                 match msg {
                     Request::Set { key: _, ref value } => Ok(Some(value.to_owned())),
@@ -100,7 +109,7 @@ impl KvsEngine for KvStore {
     }
 
     fn remove(&self, key: String) -> Result<()> {
-        let mut store = self.0.lock().unwrap();
+        let mut store = self.0.write().unwrap();
         match store.index.get(&key) {
             Some(_) => {
                 let rm = Request::Remove {
