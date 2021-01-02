@@ -2,22 +2,19 @@ use crate::network::Request;
 use crate::Result;
 use crate::{KvsEngine, KvsError};
 use bson::Document;
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::fs::{File, OpenOptions};
 use std::io::SeekFrom;
 use std::io::{BufReader, BufWriter};
 use std::io::{Seek, Write};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
-pub struct KvStore(Arc<RwLock<SharedKvStore>>);
-
-pub struct SharedKvStore {
-    path: PathBuf,
-    reader: BufReader<File>,
-    writer: BufWriter<File>,
-    index: HashMap<String, u64>,
+pub struct KvStore {
+    path: Arc<PathBuf>,
+    writer: Arc<Mutex<BufWriter<File>>>,
+    index: Arc<DashMap<String, u64>>,
 }
 
 impl KvStore {
@@ -38,17 +35,16 @@ impl KvStore {
             .append(true)
             .open(log_path)?;
         let writer = BufWriter::new(f);
-        let shared_kv_store = SharedKvStore {
-            path,
-            reader,
-            writer,
-            index,
+        let kv_store = KvStore {
+            path: Arc::new(path),
+            writer: Arc::new(Mutex::new(writer)),
+            index: Arc::new(index),
         };
-        Ok(KvStore(Arc::new(RwLock::new(shared_kv_store))))
+        Ok(kv_store)
     }
 
-    fn build_index(reader: &mut BufReader<File>) -> Result<HashMap<String, u64>> {
-        let mut index: HashMap<String, u64> = HashMap::new();
+    fn build_index(reader: &mut BufReader<File>) -> Result<DashMap<String, u64>> {
+        let index: DashMap<String, u64> = DashMap::new();
         let mut last_log_pointer = 0;
 
         while let Ok(deserialized) = Document::from_reader(reader) {
@@ -73,23 +69,22 @@ impl KvStore {
 
 impl KvsEngine for KvStore {
     fn set(&self, key: String, value: String) -> Result<()> {
-        let mut store = self.0.write().unwrap();
-        let log_pointer = store.writer.seek(SeekFrom::End(0))?;
-        store.index.insert(key.clone(), log_pointer);
+        let mut writer = self.writer.lock().unwrap();
+        let log_pointer = writer.seek(SeekFrom::End(0))?;
+        self.index.insert(key.clone(), log_pointer);
 
         let set = Request::Set { key, value };
         let serialized = bson::to_document(&set)?;
-        serialized.to_writer(&mut store.writer)?;
-        store.writer.flush()?;
+        serialized.to_writer(&mut *writer)?;
+        writer.flush()?;
         Ok(())
     }
 
     fn get(&self, key: String) -> Result<Option<String>> {
-        let store = self.0.read().unwrap();
-        let index = store.index.clone();
-        match index.get(&key) {
+        // let index = self.index.clone();
+        match self.index.get(&key) {
             Some(log_pointer) => {
-                let log_path = store.path.join("log.bson");
+                let log_path = self.path.join("log.bson");
                 let f = OpenOptions::new()
                     .read(true)
                     .create(true)
@@ -109,16 +104,16 @@ impl KvsEngine for KvStore {
     }
 
     fn remove(&self, key: String) -> Result<()> {
-        let mut store = self.0.write().unwrap();
-        match store.index.get(&key) {
+        match self.index.get(&key) {
             Some(_) => {
                 let rm = Request::Remove {
                     key: key.to_owned(),
                 };
                 let serialized = bson::to_document(&rm)?;
-                serialized.to_writer(&mut store.writer)?;
-                store.writer.flush()?;
-                store.index.remove(&key);
+                let mut writer = self.writer.lock().unwrap();
+                serialized.to_writer(&mut *writer)?;
+                writer.flush()?;
+                self.index.remove(&key);
             }
             None => return Err(KvsError::NotValidLog),
         }
