@@ -1,6 +1,7 @@
 use crate::engine::Result;
 use crate::network::{Request, Response};
-use std::io::{Read, Write};
+use serde::Deserialize;
+use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 
 /// A client to speak to kvs server.
@@ -70,11 +71,11 @@ impl KvsClient {
 }
 
 fn send_and_recv(stream: &mut TcpStream, request: Request) -> Result<Response> {
-    let request = serde_json::to_vec(&request)?;
-    stream.write_all(&request)?;
+    let mut tcp_writer = stream.try_clone()?;
+    serde_json::to_writer(&mut tcp_writer, &request)?;
+    tcp_writer.flush()?;
 
-    let mut buffer = [0; 1024];
-    let size = stream.read(&mut buffer)?;
-    let response: Response = serde_json::from_slice(&buffer[..size])?;
+    let mut de = serde_json::Deserializer::from_reader(stream);
+    let response = Response::deserialize(&mut de)?;
     Ok(response)
 }
