@@ -123,7 +123,7 @@ impl KvStore {
 
 impl KvsEngine for KvStore {
     fn set(&self, key: String, value: String) -> Result<()> {
-        let mut writer = self.writer.lock().unwrap();
+        let mut writer = self.writer.lock().map_err(|err| err.to_string())?;
         writer.set(key, value)?;
         writer.compact()?;
         Ok(())
@@ -147,7 +147,7 @@ impl KvsEngine for KvStore {
     }
 
     fn remove(&self, key: String) -> Result<()> {
-        let mut writer = self.writer.lock().unwrap();
+        let mut writer = self.writer.lock().map_err(|err| err.to_string())?;
         writer.remove(key)?;
         Ok(())
     }
