@@ -48,14 +48,14 @@ fn main() -> Result<()> {
     let engine = get_engine(opt.engine)?;
     match engine {
         Engine::kvs => {
-            let store = KvStore::open("./").unwrap();
+            let store = KvStore::open("./")?;
             let server = KvsServer::new(store, pool, None);
-            server.run(opt.addr).unwrap();
+            server.run(opt.addr)?;
         }
         Engine::sled => {
-            let store = SledKvStore::open("./").unwrap();
+            let store = SledKvStore::open("./")?;
             let server = KvsServer::new(store, pool, None);
-            server.run(opt.addr).unwrap();
+            server.run(opt.addr)?;
         }
     }
     Ok(())

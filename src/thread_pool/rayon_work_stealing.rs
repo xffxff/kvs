@@ -14,7 +14,7 @@ impl ThreadPool for RayonThreadPool {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads as usize)
             .build()
-            .unwrap();
+            .map_err(|err| err.to_string())?;
         Ok(RayonThreadPool { pool })
     }
 
