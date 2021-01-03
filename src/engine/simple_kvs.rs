@@ -80,11 +80,12 @@ impl KvStore {
         let (index, log_count) = KvStore::build_index(&path)?;
         let index = Arc::new(index);
 
-        let kvs_writer = KvStoreWriter::new(&path, index.clone(), log_count)?;
+        let path = Arc::new(path);
+        let kvs_writer = KvStoreWriter::new(path.clone(), index.clone(), log_count)?;
         let kv_store = KvStore {
-            path: Arc::new(path),
+            path,
             writer: Arc::new(Mutex::new(kvs_writer)),
-            index: index,
+            index,
         };
         Ok(kv_store)
     }
@@ -118,48 +119,13 @@ impl KvStore {
 
         Ok((index, log_count))
     }
-
-    // fn compact(&self) -> Result<()> {
-    //     let file_path = log_path(&self.path, "tmp");
-    //     let mut writer = new_buf_writer(&file_path)?;
-
-    //     let file_path = log_path(&self.path, "log");
-    //     let mut reader = new_buf_reader(&file_path)?;
-    //     let mut log_count: u64 = 0;
-    //     let mut last_log_pointer = 0;
-    //     let mut index = HashMap::new();
-    //     for entry in self.index.iter() {
-    //         reader.seek(SeekFrom::Start(entry.value().to_owned()))?;
-    //         let deserialized = Document::from_reader(&mut reader)?;
-    //         let set: Request = bson::from_document(deserialized)?;
-
-    //         let serialized = bson::to_document(&set)?;
-    //         serialized.to_writer(&mut writer)?;
-    //         writer.flush()?;
-    //         index.insert(entry.key().to_owned(), last_log_pointer);
-    //         last_log_pointer = writer.seek(SeekFrom::Current(0))?;
-    //         log_count += 1;
-    //     }
-
-    //     let mut self_log_count = self.log_count.lock().unwrap();
-    //     *self_log_count = log_count;
-    //     fs::rename(self.path.join("tmp.bson"), self.path.join("log.bson"))?;
-    //     let writer = new_buf_writer(&file_path)?;
-    //     let mut self_writer = self.writer.lock().unwrap();
-    //     *self_writer = writer;
-    //     self.index.clear();
-    //     for (key, value) in index {
-    //         self.index.insert(key, value);
-    //     }
-
-    //     Ok(())
-    // }
 }
 
 impl KvsEngine for KvStore {
     fn set(&self, key: String, value: String) -> Result<()> {
         let mut writer = self.writer.lock().unwrap();
         writer.set(key, value)?;
+        writer.compact()?;
         Ok(())
     }
 
@@ -188,16 +154,22 @@ impl KvsEngine for KvStore {
 }
 
 struct KvStoreWriter {
+    path: Arc<PathBuf>,
     writer: BufWriter<File>,
     index: Arc<DashMap<String, u64>>,
     log_count: u64,
 }
 
 impl KvStoreWriter {
-    pub fn new(path: &Path, index: Arc<DashMap<String, u64>>, log_count: u64) -> Result<Self> {
-        let file_path = log_path(path, "log");
+    pub fn new(
+        path: Arc<PathBuf>,
+        index: Arc<DashMap<String, u64>>,
+        log_count: u64,
+    ) -> Result<Self> {
+        let file_path = log_path(&path, "log");
         let writer = new_buf_writer(&file_path)?;
         let kvs_writer = KvStoreWriter {
+            path,
             writer,
             index,
             log_count,
@@ -215,7 +187,7 @@ impl KvStoreWriter {
         serialized.to_writer(&mut self.writer)?;
         self.writer.flush()?;
         Ok(())
-    } 
+    }
 
     fn remove(&mut self, key: String) -> Result<()> {
         match self.index.get(&key) {
@@ -234,4 +206,36 @@ impl KvStoreWriter {
         Ok(())
     }
 
+    fn compact(&mut self) -> Result<()> {
+        if self.log_count - self.index.len() as u64 > 1000 {
+            let file_path = log_path(&self.path, "tmp");
+            let mut writer = new_buf_writer(&file_path)?;
+
+            let file_path = log_path(&self.path, "log");
+            let mut reader = new_buf_reader(&file_path)?;
+            let mut log_count: u64 = 0;
+            let mut last_log_pointer = 0;
+            let mut index = HashMap::new();
+            for entry in self.index.iter() {
+                reader.seek(SeekFrom::Start(entry.value().to_owned()))?;
+                let deserialized = Document::from_reader(&mut reader)?;
+                deserialized.to_writer(&mut writer)?;
+                writer.flush()?;
+                index.insert(entry.key().to_owned(), last_log_pointer);
+                last_log_pointer = writer.seek(SeekFrom::Current(0))?;
+                log_count += 1;
+            }
+
+            self.log_count = log_count;
+            fs::rename(self.path.join("tmp.bson"), self.path.join("log.bson"))?;
+            let writer = new_buf_writer(&file_path)?;
+            self.writer = writer;
+            self.index.clear();
+            for (key, value) in index {
+                self.index.insert(key, value);
+            }
+        }
+
+        Ok(())
+    }
 }
