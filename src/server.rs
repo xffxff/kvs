@@ -57,7 +57,7 @@ impl<E: KvsEngine, T: ThreadPool> KvsServer<E, T> {
     /// Create a listener bound to `addr`, and handle the connection received on this listener.
     pub fn run(self, addr: SocketAddr) -> Result<()> {
         let listener = TcpListener::bind(addr)?;
-        listener.set_nonblocking(true).unwrap();
+        listener.set_nonblocking(true)?;
 
         for stream in listener.incoming() {
             if let Some(rx) = self.receiver.as_ref() {
