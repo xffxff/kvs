@@ -1,3 +1,4 @@
+//! This module provides various thread pools.
 use crate::engine::Result;
 
 /// A thread pool used to execute functions in parallel.

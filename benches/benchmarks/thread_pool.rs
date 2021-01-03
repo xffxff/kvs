@@ -34,9 +34,7 @@ fn thread_pool_get(thread_pool: &impl ThreadPool, addr: SocketAddr) {
         thread_pool.spawn(move || {
             let mut client = KvsClient::new(&addr).unwrap();
             let response = client.get(format!("key{}", i)).unwrap();
-            if let Response::Ok(option) = response {
-                assert_eq!(option, Some("value".to_string()));
-            }
+            assert_eq!(response, Some("value".to_string()));
             sender.send(()).unwrap();
         });
     }

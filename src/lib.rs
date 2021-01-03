@@ -1,4 +1,4 @@
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 //! # kvs
 //!
 //! `kvs` is a simple in-memory key/value store that maps strings
