@@ -8,7 +8,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::SeekFrom;
 use std::io::{BufReader, BufWriter};
 use std::io::{Seek, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -19,18 +19,35 @@ pub struct KvStore {
     log_count: Arc<Mutex<u64>>,
 }
 
+fn new_buf_writer(path: &Path) -> Result<BufWriter<File>> {
+    let f = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open(path)?;
+    Ok(BufWriter::new(f))
+}
+
+fn new_buf_reader(path: &Path) -> Result<BufReader<File>> {
+    let f = OpenOptions::new()
+        .read(true)
+        .create(true)
+        .append(true)
+        .open(path)?;
+    Ok(BufReader::new(f))
+}
+
+fn log_path(path: &Path, file_name: &str) -> PathBuf {
+    path.join(format!("{}.bson", file_name))
+}
+
 impl KvStore {
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
         let path: PathBuf = path.into();
-        let log_path = path.join("log.bson");
         let (index, log_count) = KvStore::build_index(&path)?;
 
-        let f = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .append(true)
-            .open(log_path)?;
-        let writer = BufWriter::new(f);
+        let file_path = log_path(&path, "log");
+        let writer = new_buf_writer(&file_path)?;
         let kv_store = KvStore {
             path: Arc::new(path),
             writer: Arc::new(Mutex::new(writer)),
@@ -44,13 +61,8 @@ impl KvStore {
         let index: DashMap<String, u64> = DashMap::new();
         let mut last_log_pointer = 0;
 
-        let log_path = path.join("log.bson");
-        let f = OpenOptions::new()
-            .read(true)
-            .create(true)
-            .append(true)
-            .open(log_path.clone())?;
-        let mut reader = BufReader::new(f);
+        let file_path = log_path(&path, "log");
+        let mut reader = new_buf_reader(&file_path)?;
 
         let mut log_count = 0;
 
@@ -76,21 +88,11 @@ impl KvStore {
     }
 
     fn compact(&self) -> Result<()> {
-        let log_path = self.path.join("tmp.bson");
-        let f = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .append(true)
-            .open(log_path)?;
-        let mut writer = BufWriter::new(f);
+        let file_path = log_path(&self.path, "tmp");
+        let mut writer = new_buf_writer(&file_path)?;
 
-        let log_path = self.path.join("log.bson");
-        let f = OpenOptions::new()
-            .read(true)
-            .create(true)
-            .append(true)
-            .open(log_path)?;
-        let mut reader = BufReader::new(f);
+        let file_path = log_path(&self.path, "log");
+        let mut reader = new_buf_reader(&file_path)?;
         let mut log_count: u64 = 0;
         let mut last_log_pointer = 0;
         let mut index = HashMap::new();
@@ -110,13 +112,7 @@ impl KvStore {
         let mut self_log_count = self.log_count.lock().unwrap();
         *self_log_count = log_count;
         fs::rename(self.path.join("tmp.bson"), self.path.join("log.bson"))?;
-        let log_path = self.path.join("log.bson");
-        let f = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .append(true)
-            .open(log_path)?;
-        let writer = BufWriter::new(f);
+        let writer = new_buf_writer(&file_path)?;
         let mut self_writer = self.writer.lock().unwrap();
         *self_writer = writer;
         self.index.clear();
@@ -152,16 +148,10 @@ impl KvsEngine for KvStore {
     }
 
     fn get(&self, key: String) -> Result<Option<String>> {
-        // let index = self.index.clone();
         match self.index.get(&key) {
             Some(log_pointer) => {
-                let log_path = self.path.join("log.bson");
-                let f = OpenOptions::new()
-                    .read(true)
-                    .create(true)
-                    .append(true)
-                    .open(log_path.clone())?;
-                let mut reader = BufReader::new(f);
+                let file_path = log_path(&self.path, "log");
+                let mut reader = new_buf_reader(&file_path)?;
                 reader.seek(SeekFrom::Start(log_pointer.to_owned()))?;
                 let deserialized = Document::from_reader(&mut reader)?;
                 let msg: Request = bson::from_document(deserialized)?;
