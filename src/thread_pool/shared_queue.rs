@@ -6,6 +6,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
+/// Using `mpsc` as shared queue to distribute work to idle threads.
+/// If a thread panics, catch the panic and keep the existing thread running.
 pub struct SharedQueueThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Message>,

@@ -24,8 +24,7 @@ pub enum KvsError {
     /// while decoding a UTF-8 String from the input data.
     FromUtf8Error(FromUtf8Error),
 
-    StringError(String),
-
+    // StringError(String),
     /// Raise when get or remove a not founded key.
     KeyNotFound,
 
@@ -45,7 +44,7 @@ impl fmt::Display for KvsError {
             KvsError::SerdeJsonError(ref err) => err.fmt(f),
             KvsError::SledError(ref err) => err.fmt(f),
             KvsError::FromUtf8Error(ref err) => err.fmt(f),
-            KvsError::StringError(ref err) => write!(f, "{}", err),
+            // KvsError::StringError(ref err) => write!(f, "{}", err),
             KvsError::KeyNotFound => write!(f, "Key not found"),
             KvsError::NotValidLog => write!(f, "Not valid log"),
             KvsError::MismatchEngine => write!(f, "Mismatch engine"),
@@ -89,8 +88,8 @@ impl From<FromUtf8Error> for KvsError {
     }
 }
 
-impl From<String> for KvsError {
-    fn from(err: String) -> KvsError {
-        KvsError::StringError(err)
-    }
-}
+// impl From<String> for KvsError {
+//     fn from(err: String) -> KvsError {
+//         KvsError::StringError(err)
+//     }
+// }

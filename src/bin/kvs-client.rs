@@ -2,7 +2,6 @@
 extern crate failure;
 use kvs::KvsClient;
 use kvs::KvsError;
-use kvs::Response;
 use kvs::Result;
 use std::net::SocketAddr;
 use structopt::StructOpt;
@@ -51,18 +50,16 @@ fn main() -> Result<()> {
         Command::Get { ref key, ref addr } => {
             let mut client = KvsClient::new(addr)?;
             let response = client.get(key.to_owned())?;
-            if let Response::Ok(option) = response {
-                match option {
-                    Some(value) => println!("{}", value),
-                    None => println!("Key not found"),
-                }
+            match response {
+                Some(value) => println!("{}", value),
+                None => println!("Key not found"),
             }
         }
         Command::Remove { ref key, ref addr } => {
             let mut client = KvsClient::new(addr)?;
             let response = client.remove(key.to_owned())?;
-            if let Response::Err(err) = response {
-                eprintln!("{}", err);
+            if response.is_none() {
+                eprintln!("Key not found");
                 return Err(KvsError::KeyNotFound);
             }
         }
