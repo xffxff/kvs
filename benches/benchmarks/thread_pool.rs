@@ -56,7 +56,7 @@ fn write_queued_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| thread_pool_set(&client_pool, addr));
@@ -82,7 +82,7 @@ fn read_queued_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 thread_pool_set(&client_pool, addr);
@@ -112,7 +112,7 @@ fn write_rayon_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| {
@@ -140,7 +140,7 @@ fn read_rayon_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
 
@@ -171,7 +171,7 @@ fn write_queued_sled_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| {
@@ -199,7 +199,7 @@ fn read_queued_sled_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
 
@@ -230,7 +230,7 @@ fn write_rayon_sled_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
                 b.iter(|| {
@@ -258,7 +258,7 @@ fn read_rayon_sled_kvstore(c: &mut Criterion) {
             let handle = thread::spawn(move || {
                 server.run(addr).unwrap();
             });
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(100));
             {
                 let client_pool = SharedQueueThreadPool::new(CLIENT_THREAD_NUM).unwrap();
 
