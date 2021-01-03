@@ -11,6 +11,36 @@ use std::io::{Seek, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+/// A simple kv store using hash map store key/value
+///
+/// # Exmaples
+/// ```rust
+/// # use kvs::{KvStore, KvsEngine, Result};
+/// # use tempfile::TempDir;
+/// #
+/// # fn main() -> Result<()> {
+/// // create a KvStore at a temp dir.
+/// let temp_dir = TempDir::new().expect("unable to create temporary working directory");
+/// let mut store = KvStore::open(temp_dir.path())?;
+///
+/// // insert a key/value.
+/// store.set("Key1".to_owned(), "Value1".to_owned())?;
+///
+/// // get the value match the key.
+/// match store.get("Key1".to_owned())? {
+///     Some(value) => println!("{}", value),
+///     None => println!("Key not found")
+/// }
+///
+/// // remove a given string key.
+/// store.remove("Key1".to_owned())?;
+///
+/// // Now "Key1" should not exist.
+/// assert_eq!(store.get("Key1".to_owned())?, None);
+///
+/// Ok(())   
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct KvStore {
     path: Arc<PathBuf>,
@@ -42,6 +72,10 @@ fn log_path(path: &Path, file_name: &str) -> PathBuf {
 }
 
 impl KvStore {
+    /// Create a KvStore at `path`
+    /// If no previous persisted log exists, create a new log;
+    /// if there is a previous persisted log then create a
+    /// KvStore based on the log.
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
         let path: PathBuf = path.into();
         let (index, log_count) = KvStore::build_index(&path)?;

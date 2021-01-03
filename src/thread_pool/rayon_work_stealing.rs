@@ -1,6 +1,7 @@
 use crate::engine::Result;
 use crate::thread_pool::ThreadPool;
 
+/// Using thre `ThreadPool` type from the [`rayon`](https://docs.rs/rayon/1.5.0/rayon/) crate.
 pub struct RayonThreadPool {
     pool: rayon::ThreadPool,
 }
