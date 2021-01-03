@@ -2,7 +2,6 @@ extern crate rand;
 extern crate rand_chacha;
 use criterion::{criterion_group, Criterion};
 use kvs::thread_pool::{RayonThreadPool, SharedQueueThreadPool, ThreadPool};
-use kvs::Response;
 use kvs::{KvStore, SledKvStore};
 use kvs::{KvsClient, KvsServer};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};

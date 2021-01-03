@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 //! # kvs
 //!
 //! `kvs` is a simple in-memory key/value store that maps strings
@@ -12,7 +12,7 @@ mod engine;
 mod error;
 mod network;
 mod server;
-mod thread_pool;
+pub mod thread_pool;
 
 pub use crate::client::KvsClient;
 pub use crate::engine::simple_kvs::*;
