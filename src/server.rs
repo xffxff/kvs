@@ -1,10 +1,9 @@
+use crate::engine::Result;
 use crate::network::{Request, Response};
 use crate::thread_pool::ThreadPool;
 use crate::KvsEngine;
-use crate::{engine::Result, KvsError};
 use log::info;
 use serde::Deserialize;
-use std::io;
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc;
@@ -64,21 +63,16 @@ impl<E: KvsEngine, T: ThreadPool> KvsServer<E, T> {
                     break;
                 }
             };
-            match stream {
-                Ok(mut s) => {
-                    info!("connection from {:?}", s.peer_addr()?);
-                    let kv_store = self.store.clone();
-                    self.pool.spawn(move || {
-                        let request = read_cmd(&mut s).unwrap();
-                        let response = process_cmd(kv_store, request).unwrap();
-                        respond(&mut s, response).unwrap();
-                    })
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    continue;
-                }
-                Err(e) => return Err(KvsError::IoError(e)),
-            }
+
+            let mut stream = stream?;
+
+            info!("connection from {:?}", stream.peer_addr()?);
+            let kv_store = self.store.clone();
+            self.pool.spawn(move || {
+                let request = read_cmd(&mut stream).unwrap();
+                let response = process_cmd(kv_store, request).unwrap();
+                respond(&mut stream, response).unwrap();
+            })
         }
 
         Ok(())
