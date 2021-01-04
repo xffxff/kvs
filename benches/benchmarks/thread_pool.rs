@@ -4,6 +4,7 @@ use criterion::{criterion_group, Criterion};
 use kvs::thread_pool::{RayonThreadPool, SharedQueueThreadPool, ThreadPool};
 use kvs::{KvStore, SledKvStore};
 use kvs::{KvsClient, KvsServer};
+use std::net::TcpStream;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::mpsc;
 use std::thread;
@@ -62,6 +63,7 @@ fn write_queued_kvstore(c: &mut Criterion) {
                 b.iter(|| thread_pool_set(&client_pool, addr));
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
@@ -92,6 +94,7 @@ fn read_queued_kvstore(c: &mut Criterion) {
                 });
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
@@ -120,6 +123,7 @@ fn write_rayon_kvstore(c: &mut Criterion) {
                 });
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
@@ -151,6 +155,7 @@ fn read_rayon_kvstore(c: &mut Criterion) {
                 });
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
@@ -179,6 +184,7 @@ fn write_queued_sled_kvstore(c: &mut Criterion) {
                 });
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
@@ -210,6 +216,7 @@ fn read_queued_sled_kvstore(c: &mut Criterion) {
                 });
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
@@ -238,6 +245,7 @@ fn write_rayon_sled_kvstore(c: &mut Criterion) {
                 });
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
@@ -269,6 +277,7 @@ fn read_rayon_sled_kvstore(c: &mut Criterion) {
                 });
             }
             tx.send(()).unwrap();
+            TcpStream::connect(addr).unwrap();
             handle.join().unwrap();
         },
         SERVER_THREAD_NUMS,
